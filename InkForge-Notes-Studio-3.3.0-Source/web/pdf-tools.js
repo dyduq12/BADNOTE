@@ -7,7 +7,9 @@
   let pickerMode = 'append';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
+  const PDF_IMPORT_MAX_PAGE_PIXELS = 9200000;
   const uid = (prefix = 'id') => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const idle = () => new Promise((resolve) => {
     if ('requestIdleCallback' in window) requestIdleCallback(() => resolve(), { timeout: 60 });
     else setTimeout(resolve, 0);
@@ -41,17 +43,35 @@
     return pdfjs;
   }
 
-  function composePage(renderedCanvas) {
+  function importQualityPlan(pageCount = 1, fileSizeBytes = 0) {
+    const pages = Math.max(1, Number(pageCount) || 1);
+    const fileMb = Math.max(0, Number(fileSizeBytes) || 0) / 1024 / 1024;
+    const memoryGb = Number(navigator.deviceMemory || 4);
+    let scale = pages <= 24 ? 2.4 : pages <= 80 ? 2.15 : pages <= 160 ? 1.9 : 1.65;
+    if (fileMb > 180) scale = Math.min(scale, 1.9);
+    if (fileMb > 350) scale = Math.min(scale, 1.65);
+    if (memoryGb && memoryGb < 4) scale = Math.min(scale, pages <= 24 ? 2.1 : 1.8);
+    const pixelScale = Math.sqrt(PDF_IMPORT_MAX_PAGE_PIXELS / (PAGE_WIDTH * PAGE_HEIGHT));
+    scale = clamp(scale, 1.35, pixelScale);
+    const width = Math.round(PAGE_WIDTH * scale);
+    const height = Math.round(PAGE_HEIGHT * scale);
+    const jpegQuality = scale >= 2.3 ? .9 : scale >= 2 ? .88 : scale >= 1.75 ? .85 : .8;
+    return { scale, width, height, jpegQuality, pixels: width * height };
+  }
+
+  function composePage(renderedCanvas, targetWidth = PAGE_WIDTH, targetHeight = PAGE_HEIGHT) {
     const output = document.createElement('canvas');
-    output.width = PAGE_WIDTH;
-    output.height = PAGE_HEIGHT;
+    output.width = targetWidth;
+    output.height = targetHeight;
     const ctx = output.getContext('2d', { alpha: false, desynchronized: true });
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-    const scale = Math.min(PAGE_WIDTH / renderedCanvas.width, PAGE_HEIGHT / renderedCanvas.height);
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    const scale = Math.min(targetWidth / renderedCanvas.width, targetHeight / renderedCanvas.height);
     const width = renderedCanvas.width * scale;
     const height = renderedCanvas.height * scale;
-    ctx.drawImage(renderedCanvas, (PAGE_WIDTH - width) / 2, (PAGE_HEIGHT - height) / 2, width, height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(renderedCanvas, (targetWidth - width) / 2, (targetHeight - height) / 2, width, height);
     return output;
   }
 
@@ -115,6 +135,7 @@
       });
       pdf = await task.promise;
       const { doc, insertAt, isNew } = await createTargetDocument(file, mode);
+      const qualityPlan = importQualityPlan(pdf.numPages, file.size);
       const importedPages = [];
       if (!isNew) api.checkpoint?.('pdf-import');
 
@@ -123,12 +144,12 @@
         showProgress(
           `PDF ${number} / ${pdf.numPages}페이지 가져오는 중`,
           fraction,
-          '페이지 자산을 분리 저장하고 보이는 페이지만 렌더링합니다.'
+          `${qualityPlan.width}×${qualityPlan.height} 고해상도 페이지 자산을 저장합니다.`
         );
         const pdfPage = await pdf.getPage(number);
         const base = pdfPage.getViewport({ scale: 1 });
-        const targetWidth = Math.min(1180, Math.max(820, base.width * 1.45));
-        const viewport = pdfPage.getViewport({ scale: targetWidth / Math.max(1, base.width) });
+        const fitScale = Math.min(qualityPlan.width / Math.max(1, base.width), qualityPlan.height / Math.max(1, base.height));
+        const viewport = pdfPage.getViewport({ scale: fitScale });
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.ceil(viewport.width));
         canvas.height = Math.max(1, Math.ceil(viewport.height));
@@ -141,18 +162,19 @@
           pdfText = content.items.map((item) => item.str || '').join(' ').replace(/\s+/g, ' ').trim();
         } catch {}
 
-        const composed = composePage(canvas);
+        const composed = composePage(canvas, qualityPlan.width, qualityPlan.height);
         const assetId = uid('pdfasset');
-        const quality = pdf.numPages > 120 ? .70 : pdf.numPages > 60 ? .75 : .82;
-        const blob = await canvasToBlob(composed, quality);
+        const blob = await canvasToBlob(composed, qualityPlan.jpegQuality);
         await api.storage.putAsset({
           id: assetId,
           kind: 'pdf-page-jpeg',
           blob,
           sourceName: file.name,
           pageNumber: number,
-          width: PAGE_WIDTH,
-          height: PAGE_HEIGHT,
+          width: qualityPlan.width,
+          height: qualityPlan.height,
+          qualityScale: qualityPlan.scale,
+          jpegQuality: qualityPlan.jpegQuality,
           createdAt: new Date().toISOString()
         });
 
@@ -168,7 +190,10 @@
           pdfSourceName: file.name,
           pdfPageNumber: number,
           needsImageOcr: !pdfText,
-          importedFromPdf: true
+          importedFromPdf: true,
+          backgroundQualityScale: qualityPlan.scale,
+          backgroundPixelWidth: qualityPlan.width,
+          backgroundPixelHeight: qualityPlan.height
         };
         importedPages.push(page);
         doc.pages.splice(insertAt + importedPages.length - 1, 0, page);
@@ -239,6 +264,7 @@
     window.__inkforgePdf = {
       openPicker,
       importPdf,
+      planImportQuality: importQualityPlan,
       get busy() { return busy; },
       ready: true
     };

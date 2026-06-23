@@ -1,10 +1,11 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.13';
+  const VERSION = '3.3.14';
   const PAGE_RENDER_SCALE_LIMIT = 4;
-  const RASTER_PAGE_RENDER_SCALE_LIMIT = 2.15;
-  const RASTER_PAGE_RENDER_PIXEL_LIMIT = 7000000;
+  const LEGACY_RASTER_PAGE_RENDER_SCALE_LIMIT = 2.15;
+  const RASTER_PAGE_RENDER_SCALE_LIMIT = 2.55;
+  const RASTER_PAGE_RENDER_PIXEL_LIMIT = 9500000;
   const HIGH_ZOOM_CANVAS_WINDOW = 1.65;
   const SHAPE_HOLD_MS = 650;
   const LIVE_SHAPE_HOLD_MS = 1000;
@@ -456,6 +457,7 @@
     allowLargePageJumpUntil: 0,
     activePageWrapIndex: -1,
     virtualPageWindow: { start: -1, end: -1 },
+    positionSaveTimer: 0,
     testReady: false
   };
 
@@ -481,11 +483,38 @@
     }));
   }
 
+  function rememberedPageIndex(doc) {
+    if (!doc?.pages?.length) return 0;
+    const byId = doc.lastPageId ? doc.pages.findIndex((page) => page.id === doc.lastPageId) : -1;
+    if (byId >= 0) return byId;
+    return clamp(Math.round(Number(doc.lastPageIndex) || 0), 0, doc.pages.length - 1);
+  }
+
+  async function rememberCurrentPage({ immediate = false } = {}) {
+    const doc = currentDocument();
+    if (!doc?.pages?.length) return;
+    const index = clamp(state.currentPageIndex, 0, doc.pages.length - 1);
+    doc.lastPageIndex = index;
+    doc.lastPageId = doc.pages[index]?.id || null;
+    clearTimeout(state.positionSaveTimer);
+    const perform = async () => {
+      try { await storage.putDocument(doc); }
+      catch {}
+    };
+    if (immediate) await perform();
+    else state.positionSaveTimer = setTimeout(perform, 240);
+  }
+
   async function persistCurrent({ immediate = false } = {}) {
     const doc = currentDocument();
     if (!doc) return;
     doc.updatedAt = now();
     doc.appVersion = VERSION;
+    if (doc.pages?.length) {
+      const index = clamp(state.currentPageIndex, 0, doc.pages.length - 1);
+      doc.lastPageIndex = index;
+      doc.lastPageId = doc.pages[index]?.id || null;
+    }
     clearTimeout(state.saveTimer);
     const perform = async () => {
       try { await storage.putDocument(doc); }
@@ -1165,7 +1194,11 @@
   function renderScaleLimitForPage(page) {
     if (!pageHasRasterBackground(page)) return PAGE_RENDER_SCALE_LIMIT;
     const pixelScale = Math.sqrt(RASTER_PAGE_RENDER_PIXEL_LIMIT / (PAGE_WIDTH * PAGE_HEIGHT));
-    return Math.max(1, Math.min(RASTER_PAGE_RENDER_SCALE_LIMIT, pixelScale));
+    const qualityScale = Number(page?.backgroundQualityScale || 0);
+    const rasterLimit = qualityScale > 1
+      ? Math.min(RASTER_PAGE_RENDER_SCALE_LIMIT, Math.max(1.35, qualityScale))
+      : LEGACY_RASTER_PAGE_RENDER_SCALE_LIMIT;
+    return Math.max(1, Math.min(rasterLimit, pixelScale));
   }
 
   function rememberImage(key, image) {
@@ -1568,7 +1601,8 @@
     const doc = state.documents.find((item) => item.id === id && !item.trashed);
     if (!doc) { toast('문서를 찾을 수 없습니다.'); return; }
     state.currentDocumentId = id;
-    state.currentPageIndex = clamp(options.pageIndex ?? 0, 0, Math.max(0, doc.pages.length - 1));
+    const explicitPage = Object.prototype.hasOwnProperty.call(options, 'pageIndex');
+    state.currentPageIndex = clamp(explicitPage ? options.pageIndex : rememberedPageIndex(doc), 0, Math.max(0, doc.pages.length - 1));
     state.pageMode = doc.settings?.pageMode || (state.settings.continuous ? 'continuous' : 'single');
     state.selection = null;
     state.searchHighlight = null;
@@ -1979,6 +2013,7 @@
       }
       updateVirtualPages();
       updatePageIndicator();
+      rememberCurrentPage();
       return;
     }
     const previousPageIndex = state.currentPageIndex;
@@ -2002,6 +2037,7 @@
     renderActiveToolMenu();
     renderSidebar();
     updateObjectMenu();
+    rememberCurrentPage();
   }
 
   function addPage(afterIndex = null, template = null) {
@@ -2542,20 +2578,65 @@
     return { length, bounds, reversals, axisReversals, closure: distance(points[0], points[points.length - 1]) };
   }
 
+  function segmentOrientation(a, b, c) {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  }
+
+  function segmentsCross(a, b, c, d) {
+    const ab = distance(a, b), cd = distance(c, d);
+    if (ab < .001 || cd < .001) return false;
+    const o1 = segmentOrientation(a, b, c);
+    const o2 = segmentOrientation(a, b, d);
+    const o3 = segmentOrientation(c, d, a);
+    const o4 = segmentOrientation(c, d, b);
+    return o1 * o2 < 0 && o3 * o4 < 0;
+  }
+
+  function pathSelfIntersections(points, maxCount = 24) {
+    if (!points || points.length < 5) return 0;
+    let count = 0;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      for (let j = i + 2; j < points.length; j++) {
+        if (i === 1 && j === points.length - 1) continue;
+        const c = points[j - 1], d = points[j];
+        if (segmentsCross(a, b, c, d) && ++count >= maxCount) return count;
+      }
+    }
+    return count;
+  }
+
+  function pathRevisitProfile(points, cellSize = 18) {
+    const seen = new Set();
+    let revisits = 0, previous = '';
+    for (const point of points || []) {
+      const key = `${Math.floor(point.x / cellSize)}:${Math.floor(point.y / cellSize)}`;
+      if (key === previous) continue;
+      if (seen.has(key)) revisits++;
+      seen.add(key);
+      previous = key;
+    }
+    return { revisits, cells: seen.size };
+  }
+
   function scribbleGestureProfile(points) {
     const metrics = strokeMetrics(points);
     const diagonal = Math.hypot(metrics.bounds.w, metrics.bounds.h);
     const maxDimension = Math.max(metrics.bounds.w, metrics.bounds.h);
     const minDimension = Math.min(metrics.bounds.w, metrics.bounds.h);
+    const lengthRatio = metrics.length / Math.max(1, diagonal);
+    const intersections = pathSelfIntersections(points);
+    const revisit = pathRevisitProfile(points, clamp(diagonal / 7, 12, 24));
     const compact = maxDimension < 560 && minDimension > 8 && diagonal > 24;
     const localCompact = maxDimension <= 180 && minDimension >= 4 && diagonal >= 12;
-    const openGesture = metrics.closure > diagonal * .42;
-    const jaggedClosedGesture = metrics.reversals >= 4 && metrics.length > diagonal * 2.7;
-    const notClosedShape = openGesture || jaggedClosedGesture;
-    const broadDense = compact && notClosedShape && metrics.reversals >= 3 && metrics.length > Math.max(110, diagonal * 2.35);
-    const localTurns = Math.max(metrics.reversals, metrics.axisReversals);
-    const localDense = localCompact && metrics.reversals >= 2 && metrics.axisReversals >= 2 && metrics.length > Math.max(44, diagonal * 1.8) && (notClosedShape || metrics.reversals >= 3);
-    return { metrics, diagonal, dense: broadDense || localDense, local: localDense && !broadDense };
+    const openGesture = metrics.closure > diagonal * .46;
+    const scrubbedBackAndForth = metrics.axisReversals >= 4 && metrics.reversals >= 2 && lengthRatio > 2.25;
+    const crossedOver = intersections >= 2 && lengthRatio > 1.85;
+    const repeatedArea = revisit.revisits >= 4 && metrics.reversals >= 2 && lengthRatio > 2.15;
+    const loopedScrub = metrics.axisReversals >= 6 && revisit.revisits >= 5 && lengthRatio > 3;
+    const broadDense = compact && metrics.length > Math.max(128, diagonal * 2.45) && (scrubbedBackAndForth || crossedOver || repeatedArea || loopedScrub);
+    const localDense = localCompact && metrics.length > Math.max(58, diagonal * 2.05) && (scrubbedBackAndForth || crossedOver || repeatedArea || loopedScrub) && (openGesture || intersections || revisit.revisits >= 3);
+    return { metrics, diagonal, intersections, revisits: revisit.revisits, dense: broadDense || localDense, local: localDense && !broadDense };
   }
 
   function pointNearPath(point, path, radius) {
@@ -3009,7 +3090,10 @@
     const pointerType = effectivePointerType(event);
     const pageIndex = Number(canvas.dataset.pageIndex);
     if (!Number.isInteger(pageIndex)) return;
+    const previousPageIndex = state.currentPageIndex;
     state.currentPageIndex = pageIndex;
+    if (previousPageIndex !== state.currentPageIndex) notifyPageChanged(previousPageIndex, 'pointer');
+    rememberCurrentPage();
     updatePageIndicator();
     try { canvas.setPointerCapture(event.pointerId); } catch {}
     const pointerRecord = { pointerId: event.pointerId, pointerType, clientX: event.clientX, clientY: event.clientY, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY };
@@ -3950,7 +4034,7 @@
       case 'cycle-dock': {
         const positions = ['top','right','bottom','left']; state.dock = positions[(positions.indexOf(state.dock) + 1) % positions.length]; renderActiveToolMenu(); break;
       }
-      case 'switch-tab': if (target.dataset.docId) openDocument(target.dataset.docId, { pageIndex: state.currentPageIndex }); break;
+      case 'switch-tab': if (target.dataset.docId) openDocument(target.dataset.docId); break;
       case 'close-tab': event.stopPropagation(); closeTab(target.dataset.docId); break;
       case 'go-page': scrollToPage(Number(target.dataset.pageIndex)); break;
       case 'page-menu': event.stopPropagation(); pageMenu(Number(target.dataset.pageIndex)); break;
@@ -4168,6 +4252,7 @@
         state.currentPageIndex = best;
         notifyPageChanged(previousPageIndex, 'continuous-scroll');
         updatePageIndicator(); renderSidebar(); updateObjectMenu();
+        rememberCurrentPage();
       }
       updateVirtualPages();
     });
@@ -4240,7 +4325,16 @@
       renderPenPreview();
     });
     window.addEventListener('resize', () => { if (state.view === 'editor') { updatePageSizing(); updateObjectMenu(); } });
-    window.addEventListener('beforeunload', () => { const doc = currentDocument(); if (doc) storage.putDocument(doc); });
+    window.addEventListener('beforeunload', () => {
+      const doc = currentDocument();
+      if (!doc) return;
+      if (doc.pages?.length) {
+        const index = clamp(state.currentPageIndex, 0, doc.pages.length - 1);
+        doc.lastPageIndex = index;
+        doc.lastPageId = doc.pages[index]?.id || null;
+      }
+      storage.putDocument(doc);
+    });
   }
 
   async function initialize() {

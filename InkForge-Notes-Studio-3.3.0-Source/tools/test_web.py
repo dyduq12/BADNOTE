@@ -152,7 +152,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             const progressWidth = document.getElementById('nativeUpdateProgressFill')?.style.width;
             document.querySelectorAll('.modal').forEach(node => node.hidden = true);
             document.getElementById('modalBackdrop').hidden = true;
-            localStorage.removeItem('badnote.releaseNotes.seen.3.3.13');
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.14');
             localStorage.removeItem('badnote.releaseNotes.lastVersion');
             const first = bridge.showReleaseNotesOnce();
             const notesVisible = !document.getElementById('nativeUpdateSheet').hidden && document.getElementById('nativeUpdateSheet').dataset.status === 'release-notes';
@@ -303,6 +303,26 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
           }
         """)
         results["page_scroll_rail"]["passed"] = bool(results["page_scroll_rail"].get("exists") and results["page_scroll_rail"].get("visible") and results["page_scroll_rail"].get("value") == "2" and results["page_scroll_rail"].get("pageIndex") == 1)
+        results["last_page_restore"] = await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const doc = api.currentDocument();
+            while (doc.pages.length < 4) api.addPage();
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            api.scrollToPage(3, false);
+            await new Promise(resolve => setTimeout(resolve, 360));
+            const stored = (await api.storage.allDocuments()).find(item => item.id === doc.id);
+            api.state.currentPageIndex = 0;
+            api.openDocument(doc.id);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return {
+              storedIndex: stored?.lastPageIndex,
+              storedPageId: stored?.lastPageId,
+              openedIndex: api.state.currentPageIndex,
+              passed: stored?.lastPageIndex === 3 && !!stored?.lastPageId && api.state.currentPageIndex === 3
+            };
+          }
+        """)
         await page.wait_for_timeout(700)
         results["zoom_render_scale"] = await page.evaluate("""
           () => {
@@ -468,6 +488,22 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             };
           }
         """)
+        results["pdf_import_quality_plan"] = await page.evaluate("""
+          () => {
+            const small = window.__inkforgePdf.planImportQuality(12, 8 * 1024 * 1024);
+            const huge = window.__inkforgePdf.planImportQuality(220, 420 * 1024 * 1024);
+            return {
+              small,
+              huge,
+              passed: small.scale >= 2.35 &&
+                small.width >= 2350 &&
+                small.height >= 3300 &&
+                small.jpegQuality >= .88 &&
+                huge.scale <= 1.7 &&
+                huge.pixels <= 9200000
+            };
+          }
+        """)
         results["pdf_zoom_canvas_budget"] = await page.evaluate("""
           async () => {
             const api = window.__inkforge;
@@ -475,18 +511,24 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             const pageIndex = api.state.currentPageIndex;
             const page = doc.pages[pageIndex];
             const source = document.createElement('canvas');
-            source.width = 1000;
-            source.height = 1414;
+            source.width = 2400;
+            source.height = 3394;
             const ctx = source.getContext('2d', { alpha: false });
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, source.width, source.height);
             ctx.fillStyle = '#e5edf7';
-            for (let y = 80; y < source.height; y += 120) ctx.fillRect(80, y, 840, 28);
-            const blob = await new Promise(resolve => source.toBlob(resolve, 'image/jpeg', .75));
+            for (let y = 190; y < source.height; y += 288) ctx.fillRect(190, y, 2020, 68);
+            ctx.fillStyle = '#111827';
+            ctx.font = '96px sans-serif';
+            ctx.fillText('High resolution PDF sample', 190, 420);
+            const blob = await new Promise(resolve => source.toBlob(resolve, 'image/jpeg', .9));
             const assetId = 'pdf_zoom_budget_asset';
-            await api.storage.putAsset({ id: assetId, kind: 'pdf-page-jpeg', blob, width: 1000, height: 1414, pageNumber: 1, createdAt: new Date().toISOString() });
+            await api.storage.putAsset({ id: assetId, kind: 'pdf-page-jpeg', blob, width: 2400, height: 3394, qualityScale: 2.4, pageNumber: 1, createdAt: new Date().toISOString() });
             page.backgroundAssetId = assetId;
             page.importedFromPdf = true;
+            page.backgroundQualityScale = 2.4;
+            page.backgroundPixelWidth = 2400;
+            page.backgroundPixelHeight = 3394;
             page.needsImageOcr = false;
             api.renderEditorPages();
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -510,7 +552,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
               mounted,
               imageCacheSize: api.state.imageCache.size,
               assetUrlCacheSize: api.state.assetUrlCache.size,
-              passed: pixels > 0 && pixels <= 7000000 && mounted <= 2 && api.state.imageCache.size <= 3 && api.state.assetUrlCache.size <= 3
+              passed: pixels > 0 && pixels <= 9500000 && (canvas?.width || 0) >= 2350 && mounted <= 2 && api.state.imageCache.size <= 3 && api.state.assetUrlCache.size <= 3
             };
           }
         """)
@@ -821,6 +863,72 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             };
           }
         """)
+        results["scribble_letter_r_guard"] = await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const pageIndex = api.state.currentPageIndex;
+            const page = api.currentPage();
+            api.setZoom(1);
+            api.setTool('pen');
+            api.state.settings.scribbleErase = true;
+            page.objects = page.objects.filter(object => !String(object.id).startsWith('letter_r_guard'));
+            page.objects.push({
+              id: 'letter_r_guard_target',
+              type: 'stroke',
+              brush: 'fountain',
+              color: '#111827',
+              width: 7,
+              opacity: 1,
+              points: [
+                { x: 640, y: 592, p: .6 },
+                { x: 690, y: 592, p: .6 },
+                { x: 735, y: 592, p: .6 }
+              ]
+            });
+            api.renderPageCanvas(pageIndex);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const canvas = document.querySelector(`.page-canvas[data-page-index="${pageIndex}"]`);
+            const clientFor = (x, y) => {
+              const rect = canvas.getBoundingClientRect();
+              return { x: rect.left + x / 1000 * rect.width, y: rect.top + y / 1414 * rect.height };
+            };
+            const send = (type, point) => canvas.dispatchEvent(new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              pointerId: 8814,
+              pointerType: 'pen',
+              isPrimary: true,
+              button: 0,
+              buttons: type === 'pointerup' ? 0 : 1,
+              pressure: type === 'pointerup' ? 0 : .55,
+              clientX: point.x,
+              clientY: point.y
+            }));
+            const path = [
+              clientFor(650, 660),
+              clientFor(650, 540),
+              clientFor(690, 540),
+              clientFor(730, 562),
+              clientFor(728, 590),
+              clientFor(702, 610),
+              clientFor(654, 607),
+              clientFor(680, 620),
+              clientFor(710, 642),
+              clientFor(735, 666)
+            ];
+            send('pointerdown', path[0]);
+            path.slice(1).forEach(point => send('pointermove', point));
+            send('pointerup', path[path.length - 1]);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const targetStillPresent = page.objects.some(object => object.id === 'letter_r_guard_target');
+            const letterStrokeCommitted = page.objects.some(object => object.id !== 'letter_r_guard_target' && object.type === 'stroke' && object.points?.length >= 8);
+            return {
+              targetStillPresent,
+              letterStrokeCommitted,
+              passed: targetStillPresent && letterStrokeCommitted
+            };
+          }
+        """)
 
         # S Pen gesture mapping (bridge path and on-screen barrel gesture share actions).
         spen = await page.evaluate("""
@@ -1064,7 +1172,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
     results["dialogs"] = dialogs
     results["console_errors"] = errors
-    required_scalars = results.get("version") == "3.3.13" and results.get("upgrade_version") == "3.3.13" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
+    required_scalars = results.get("version") == "3.3.14" and results.get("upgrade_version") == "3.3.14" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
     results["passed"] = required_scalars and not errors and not dialogs and all(value.get("passed", True) if isinstance(value, dict) else True for key, value in results.items() if key not in {"console_errors", "dialogs"})
     return results
 

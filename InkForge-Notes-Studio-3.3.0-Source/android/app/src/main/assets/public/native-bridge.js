@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.13';
+  const VERSION = '3.3.14';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const HANDWRITING_OCR_DWELL_MS = 2800;
@@ -11,10 +11,11 @@
   const SHAPE_HOLD_MS = 650;
   const BARREL_BUTTON_LATCH_MS = 3500;
   const RELEASE_NOTES = [
-    '펜, 형광펜, 도형, 지우개 굵기를 슬라이더로 세밀하게 조절할 수 있습니다.',
-    '새로 그리는 획과 도형 굵기, 지우개 반경을 화면 픽셀 기준으로 적용해 확대 상태에서도 체감 굵기를 일정하게 맞췄습니다.',
-    '낙서해서 지우기는 낙서 경로에 실제로 닿은 객체만 삭제하도록 바운딩 박스 삭제를 제거했습니다.',
-    '낙서 지우기 민감도는 3.3.12보다 낮추고, 기존보다 살짝 더 민감한 수준으로 조정했습니다.'
+    'PDF를 가져올 때 페이지 배경 이미지를 기존보다 높은 해상도로 저장해 확대 시 글자와 선명도를 개선했습니다.',
+    '문서 페이지 수와 파일 크기에 따라 PDF 저장 해상도를 자동 조절해 작은 문서는 더 선명하게, 큰 문서는 메모리를 보호합니다.',
+    '고해상도 PDF 배경이 있는 페이지에서만 확대 렌더링 캔버스 상한을 올려 품질을 높이고, 기존 문서와 대용량 문서는 기존 보호 한계를 유지합니다.',
+    '낙서 지우기는 R 같은 글자 획이 아니라 반복 왕복·교차·재방문이 있는 문지르기 제스처에 더 가깝게 판정합니다.',
+    '문서를 다시 열면 이전에 보거나 작성하던 마지막 페이지로 돌아갑니다.'
   ];
   const RELEASE_NOTES_LAST_VERSION_KEY = 'badnote.releaseNotes.lastVersion';
   const nativeApi = window.InkForgeNative;
