@@ -392,6 +392,7 @@
     assetUrlCache: new Map(),
     assetLoadQueue: new Map(),
     renderFrames: new Map(),
+    activePageWrapIndex: -1,
     testReady: false
   };
 
@@ -1453,10 +1454,50 @@
     const available = Math.max(280, viewport.clientWidth - (mobile ? 20 : 104));
     const base = Math.min(880, available);
     const width = Math.round(base * state.zoom);
-    $$('.page-wrap').forEach((wrap) => { wrap.style.width = `${width}px`; });
-    $('#pageStack').style.setProperty('--zoom', String(state.zoom));
+    const stack = $('#pageStack');
+    stack.style.setProperty('--zoom', String(state.zoom));
+    stack.style.setProperty('--page-width', `${width}px`);
     $('#zoomIndicator').textContent = `${Math.round(state.zoom * 100)}%`;
     $$('.page-canvas').forEach((canvas) => scheduleRenderPage(Number(canvas.dataset.pageIndex)));
+  }
+
+  function pageLayoutMetrics() {
+    const first = $('.page-wrap[data-page-index="0"]');
+    if (!first) return null;
+    const second = $('.page-wrap[data-page-index="1"]');
+    const firstTop = first.offsetTop;
+    const pageHeight = Math.max(1, first.offsetHeight);
+    const step = second ? Math.max(1, second.offsetTop - firstTop) : pageHeight + 34;
+    return { firstTop, pageHeight, step };
+  }
+
+  function estimatePageIndexFromScroll() {
+    const doc = currentDocument();
+    const viewport = $('#editorViewport');
+    const metrics = pageLayoutMetrics();
+    if (!doc || !viewport || !metrics) return state.currentPageIndex;
+    const center = viewport.scrollTop + viewport.clientHeight / 2;
+    const raw = (center - metrics.firstTop - metrics.pageHeight / 2) / metrics.step;
+    return clamp(Math.round(raw), 0, doc.pages.length - 1);
+  }
+
+  function bestVisiblePageIndex() {
+    const doc = currentDocument();
+    const viewport = $('#editorViewport');
+    if (!doc || !viewport) return state.currentPageIndex;
+    const estimated = estimatePageIndexFromScroll();
+    const centerY = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
+    let best = estimated, bestDistance = Infinity;
+    const start = Math.max(0, estimated - 2);
+    const end = Math.min(doc.pages.length - 1, estimated + 2);
+    for (let index = start; index <= end; index++) {
+      const wrap = $(`.page-wrap[data-page-index="${index}"]`);
+      if (!wrap) continue;
+      const rect = wrap.getBoundingClientRect();
+      const currentDistance = Math.abs(rect.top + rect.height / 2 - centerY);
+      if (currentDistance < bestDistance) { bestDistance = currentDistance; best = index; }
+    }
+    return clamp(best, 0, doc.pages.length - 1);
   }
 
   function mountPageCanvas(index) {
@@ -1483,13 +1524,14 @@
     const doc = currentDocument(), viewport = $('#editorViewport');
     if (!doc || !viewport) return;
     if (state.pageMode === 'single') { mountPageCanvas(state.currentPageIndex); return; }
-    const viewportRect = viewport.getBoundingClientRect();
-    const margin = Math.max(viewport.clientHeight * 1.7, 1300);
-    $$('.page-wrap').forEach((wrap) => {
-      const index = Number(wrap.dataset.pageIndex), rect = wrap.getBoundingClientRect();
-      const near = rect.bottom >= viewportRect.top - margin && rect.top <= viewportRect.bottom + margin;
-      if (near || Math.abs(index - state.currentPageIndex) <= 2) mountPageCanvas(index);
-      else if (Math.abs(index - state.currentPageIndex) > 4) unmountPageCanvas(index);
+    const center = bestVisiblePageIndex();
+    const radius = doc.pages.length > 120 ? 3 : 4;
+    const start = Math.max(0, Math.min(center, state.currentPageIndex) - radius);
+    const end = Math.min(doc.pages.length - 1, Math.max(center, state.currentPageIndex) + radius);
+    for (let index = start; index <= end; index++) mountPageCanvas(index);
+    $$('.page-canvas').forEach((canvas) => {
+      const index = Number(canvas.dataset.pageIndex);
+      if ((index < start || index > end) && index !== state.currentPageIndex) unmountPageCanvas(index);
     });
   }
 
@@ -1499,7 +1541,8 @@
     setView('editor');
     const stack = $('#pageStack');
     stack.classList.toggle('single-mode', state.pageMode === 'single');
-    stack.innerHTML = doc.pages.map((page, index) => `<section class="page-wrap ${index === state.currentPageIndex ? 'is-active' : ''}" data-page-index="${index}" data-tool="${state.readOnly ? 'hand' : state.tool}">
+    stack.dataset.tool = state.readOnly ? 'hand' : state.tool;
+    stack.innerHTML = doc.pages.map((page, index) => `<section class="page-wrap ${index === state.currentPageIndex ? 'is-active' : ''}" data-page-index="${index}">
       <div class="page-placeholder" aria-label="${index + 1}페이지 로딩"></div>
       <span class="page-number-chip">${index + 1}</span>
       <div class="page-bottom-actions"><button class="next-page-button" data-action="insert-page-after" data-page-index="${index}">${icon('page-plus')}<span>${index === doc.pages.length - 1 ? '다음 페이지 추가' : '이 페이지 뒤에 추가'}</span></button></div>
@@ -1550,7 +1593,11 @@
     const doc = currentDocument();
     if (!doc) return;
     $('#pageIndicator').textContent = `${state.currentPageIndex + 1} / ${doc.pages.length}`;
-    $$('.page-wrap').forEach((wrap, index) => wrap.classList.toggle('is-active', index === state.currentPageIndex));
+    if (state.activePageWrapIndex !== state.currentPageIndex) {
+      $(`.page-wrap[data-page-index="${state.activePageWrapIndex}"]`)?.classList.remove('is-active');
+      $(`.page-wrap[data-page-index="${state.currentPageIndex}"]`)?.classList.add('is-active');
+      state.activePageWrapIndex = state.currentPageIndex;
+    }
     updatePageScrollRail();
   }
 
@@ -1627,6 +1674,7 @@
     const content = $('#sidebarContent');
     const doc = currentDocument();
     if (!doc) { content.innerHTML = ''; return; }
+    if (!state.sidebarOpen) return;
     if (state.sidebarTab === 'pages') {
       content.innerHTML = doc.pages.map((page, index) => `<button class="page-thumb-item ${index === state.currentPageIndex ? 'is-active' : ''}" data-action="go-page" data-page-index="${index}"><canvas class="page-thumb-canvas" width="144" height="204"></canvas><span class="page-thumb-copy"><strong>${page.title ? escapeHtml(page.title) : `${index + 1}페이지`}</strong><small>${page.objects.length}개 항목${page.bookmarked ? ' · 북마크' : ''}</small></span><span class="page-thumb-menu" data-action="page-menu" data-page-index="${index}">${icon('more')}</span></button>`).join('') + `<button class="sidebar-add-page" data-action="add-page">${icon('page-plus')}<span>페이지 추가</span></button>`;
       const thumbRows = $$('.page-thumb-item', content);
@@ -1666,7 +1714,8 @@
     if (!menu) return;
     const tool = state.readOnly ? 'hand' : state.tool;
     $$('.tool-button').forEach((button) => button.classList.toggle('is-active', button.dataset.tool === tool));
-    $$('.page-wrap').forEach((wrap) => wrap.dataset.tool = tool);
+    const stack = $('#pageStack');
+    if (stack) stack.dataset.tool = tool;
     let html = '';
     if (tool === 'pen') {
       const brush = BRUSH_META[state.brush] || BRUSH_META.fountain;
@@ -3152,14 +3201,7 @@
     if (scrollFrame || state.pageMode === 'single') return;
     scrollFrame = requestAnimationFrame(() => {
       scrollFrame = 0;
-      const viewport = $('#editorViewport');
-      const centerY = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
-      let best = state.currentPageIndex, bestDistance = Infinity;
-      $$('.page-wrap').forEach((wrap) => {
-        const rect = wrap.getBoundingClientRect();
-        const currentDistance = Math.abs(rect.top + rect.height / 2 - centerY);
-        if (currentDistance < bestDistance) { bestDistance = currentDistance; best = Number(wrap.dataset.pageIndex); }
-      });
+      const best = bestVisiblePageIndex();
       if (best !== state.currentPageIndex) {
         const previousPageIndex = state.currentPageIndex;
         state.currentPageIndex = best;

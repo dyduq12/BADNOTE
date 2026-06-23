@@ -6,6 +6,10 @@
 **/.gradle/
 **/build/
 
+# Python benchmark caches
+**/__pycache__/
+**/*.py[cod]
+
 # Local Android environment and signing material
 **/local.properties
 **/local-signing.properties
