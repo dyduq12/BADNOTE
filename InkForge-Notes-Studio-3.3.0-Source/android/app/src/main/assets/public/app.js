@@ -329,36 +329,6 @@
     };
   }
 
-  function sampleStroke(points, color = '#243447', width = 4, brush = 'fountain', opacity = 1) {
-    return { id: uid('stroke'), type: 'stroke', brush, color, width, opacity, points };
-  }
-
-  function seedDocuments() {
-    const names = ['미적분 개념 정리', '물리 실험 노트', '주간 플래너', '프로젝트 아이디어', '영어 단어 정리', '회의 기록', '선형대수', '독서 메모', '화학 공식', '여행 계획'];
-    const templates = ['grid', 'lined', 'planner', 'blank', 'dotted', 'cornell'];
-    return names.map((name, index) => {
-      const doc = createDocument(name, templates[index % templates.length]);
-      doc.coverColor = ['#2b83bd','#6b63c9','#d7823a','#2c9679','#c85c76','#596b7e'][index % 6];
-      doc.favorite = index === 0 || index === 3;
-      doc.updatedAt = new Date(Date.now() - index * 86400000 * 7).toISOString();
-      if (index < 5) {
-        const page = doc.pages[0];
-        page.objects.push({ id: uid('text'), type: 'text', x: 105, y: 135, w: 720, h: 60, text: name, color: '#1f2937', fontSize: 34, fontWeight: 700 });
-        page.objects.push(sampleStroke([
-          { x: 110, y: 245, p: .4, tx: 0, ty: 0, t: 0 },
-          { x: 240, y: 230, p: .55, tx: 0, ty: 0, t: 16 },
-          { x: 365, y: 255, p: .68, tx: 0, ty: 0, t: 32 },
-          { x: 500, y: 225, p: .48, tx: 0, ty: 0, t: 48 }
-        ], index === 4 ? '#e2c400' : '#334155', index === 4 ? 18 : 4, index === 4 ? 'highlighter' : 'fountain', index === 4 ? .35 : 1));
-        if (index === 0 || index === 6) {
-          page.objects.push({ id: uid('math'), type: 'math', x: 110, y: 330, w: 470, h: 85, expression: '(12 + 8) × 3', result: '60', color: '#225ea8', fontSize: 28 });
-        }
-      }
-      if (index < 3) doc.pages.push(blankPage(templates[(index + 1) % templates.length]));
-      return doc;
-    });
-  }
-
   const state = {
     documents: [],
     folders: [
@@ -3277,10 +3247,7 @@
     state.settings = { ...state.settings, ...(legacySettings || {}), ...(savedPreferences || {}) };
     await storage.setSetting('preferences', state.settings);
     let docs = await storage.allDocuments();
-    if (!Array.isArray(docs) || !docs.length) {
-      docs = seedDocuments();
-      await Promise.all(docs.map((doc) => storage.putDocument(deepClone(doc))));
-    }
+    if (!Array.isArray(docs)) docs = [];
     state.documents = docs.map((doc) => ({
       ...doc,
       schema: doc.schema || 'com.inkforge.ifnote',

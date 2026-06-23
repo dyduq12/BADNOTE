@@ -120,7 +120,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
         results["version"] = await page.evaluate("window.__inkforge.VERSION")
         results["upgrade_version"] = await page.evaluate("window.__inkforge32.VERSION")
-        results["seed_documents"] = await page.evaluate("window.__inkforge.state.documents.length")
+        seed_count = await page.evaluate("window.__inkforge.state.documents.length")
+        results["seed_documents"] = {"count": seed_count, "passed": seed_count == 0}
         results["old_math_ui_removed"] = {
             "toolbar_count": await page.locator('[data-action="open-math"]').count(),
             "legacy_hidden": await page.locator('#mathSheet').evaluate("node => getComputedStyle(node).display === 'none'"),
@@ -132,7 +133,15 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             args.screenshots.mkdir(parents=True, exist_ok=True)
             await page.screenshot(path=str(args.screenshots / "inkforge-3.2-library.png"), full_page=True)
 
-        await page.evaluate("window.__inkforge.openDocument(window.__inkforge.state.documents[0].id)")
+        await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const doc = api.createDocument('테스트 노트', 'grid');
+            api.state.documents.push(doc);
+            await api.storage.putDocument(doc);
+            api.openDocument(doc.id);
+          }
+        """)
         await page.wait_for_timeout(350)
         await page.evaluate("window.__inkforge.setTool('pen')")
         await page.wait_for_timeout(150)
@@ -318,7 +327,16 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         mobile.on("pageerror", lambda error: errors.append(f"mobile pageerror: {error}"))
         mobile.on("console", lambda message: errors.append(f"mobile console {message.type}: {message.text}") if message.type == "error" else None)
         await install(mobile, html, app, recognition, pdf_tools, upgrade, native_bridge)
-        await mobile.evaluate("window.__inkforge.openDocument(window.__inkforge.state.documents[0].id);window.__inkforge.setTool('pen')")
+        await mobile.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const doc = api.createDocument('모바일 테스트 노트', 'grid');
+            api.state.documents.push(doc);
+            await api.storage.putDocument(doc);
+            api.openDocument(doc.id);
+            api.setTool('pen');
+          }
+        """)
         await mobile.wait_for_timeout(250)
         mobile_metrics = await overlap_metrics(mobile)
         mobile_metrics["ocr_visible"] = await mobile.locator("#ocrToolbarButton").is_visible()
