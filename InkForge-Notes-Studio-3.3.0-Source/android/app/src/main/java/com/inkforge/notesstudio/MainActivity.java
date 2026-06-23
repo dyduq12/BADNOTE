@@ -11,8 +11,10 @@ import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -31,6 +33,7 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
+import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewAssetLoader;
 
 import com.google.mlkit.common.model.DownloadConditions;
@@ -58,8 +61,11 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -74,6 +80,9 @@ import java.util.concurrent.TimeUnit;
 public final class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 4172;
     private static final int AUDIO_PERMISSION_REQUEST = 4173;
+    private static final String APP_VERSION = "3.3.7";
+    private static final String RELEASES_API_URL = "https://api.github.com/repos/jsk1004ha/BADNOTE/releases/latest";
+    private static final String RELEASES_PAGE_URL = "https://github.com/jsk1004ha/BADNOTE/releases";
 
     private InkWebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;
@@ -437,6 +446,8 @@ public final class MainActivity extends Activity {
         private final Object tesseractLock = new Object();
         private TessBaseAPI tesseractApi;
         private volatile boolean warmupStarted;
+        private volatile JSONObject latestUpdate;
+        private volatile File downloadedUpdateApk;
 
         NativeInkBridge(WebView target) {
             this.target = target;
@@ -447,7 +458,7 @@ public final class MainActivity extends Activity {
             JSONObject result = new JSONObject();
             try {
                 result.put("native", true);
-                result.put("version", "3.3.6");
+                result.put("version", APP_VERSION);
                 result.put("digitalInk", true);
                 result.put("koreanImageOcr", true);
                 result.put("koreanEnglishImageOcr", true);
@@ -455,6 +466,8 @@ public final class MainActivity extends Activity {
                 result.put("imageOcrEngine", "mlkit-korean+latin");
                 result.put("tesseractFallbackDefault", false);
                 result.put("stylusMotionEvent", true);
+                result.put("appUpdate", true);
+                result.put("releaseFeed", RELEASES_PAGE_URL);
                 result.put("minSdk", 23);
                 result.put("android", Build.VERSION.RELEASE);
                 result.put("sdk", Build.VERSION.SDK_INT);
@@ -463,6 +476,84 @@ public final class MainActivity extends Activity {
             } catch (JSONException ignored) {
             }
             return result.toString();
+        }
+
+        @JavascriptInterface
+        public void checkForUpdate() {
+            executor.execute(() -> {
+                dispatchUpdateStatus(
+                        "checking",
+                        jsonObject("currentVersion", APP_VERSION)
+                );
+                try {
+                    JSONObject update = loadLatestUpdate();
+                    if (update == null) {
+                        dispatchUpdateStatus(
+                                "current",
+                                jsonObject("currentVersion", APP_VERSION)
+                        );
+                        return;
+                    }
+                    latestUpdate = update;
+                    downloadedUpdateApk = null;
+                    dispatchUpdateStatus("available", update);
+                } catch (Exception error) {
+                    dispatchUpdateStatus(
+                            "error",
+                            jsonObject("message", errorMessage(error))
+                    );
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void downloadUpdate() {
+            executor.execute(() -> {
+                try {
+                    JSONObject update = latestUpdate;
+                    if (update == null) {
+                        update = loadLatestUpdate();
+                        if (update == null) {
+                            dispatchUpdateStatus(
+                                    "current",
+                                    jsonObject("currentVersion", APP_VERSION)
+                            );
+                            return;
+                        }
+                        latestUpdate = update;
+                    }
+                    File output = downloadUpdateApk(update);
+                    downloadedUpdateApk = output;
+                    dispatchUpdateStatus(
+                            "downloaded",
+                            withUpdateFields(update, "fileSize", output.length())
+                    );
+                } catch (Exception error) {
+                    dispatchUpdateStatus(
+                            "error",
+                            jsonObject("message", errorMessage(error))
+                    );
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void installDownloadedUpdate() {
+            mainHandler.post(() -> {
+                try {
+                    installDownloadedApk();
+                } catch (Exception error) {
+                    dispatchUpdateStatus(
+                            "error",
+                            jsonObject("message", errorMessage(error))
+                    );
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void openUpdateInstallSettings() {
+            mainHandler.post(this::openUnknownSourcesSettings);
         }
 
         @JavascriptInterface
@@ -539,6 +630,277 @@ public final class MainActivity extends Activity {
                     if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
                 }
             });
+        }
+
+        private JSONObject loadLatestUpdate() throws IOException, JSONException {
+            JSONObject release = fetchJson(RELEASES_API_URL);
+            String version = normalizeReleaseVersion(release.optString("tag_name", ""));
+            if (version.isEmpty() || compareVersions(version, APP_VERSION) <= 0) {
+                return null;
+            }
+            JSONObject asset = selectReleaseAsset(release, version);
+            if (asset == null) {
+                throw new IOException("현재 설치 유형에 맞는 APK 자산을 찾지 못했습니다.");
+            }
+            return jsonObject(
+                    "currentVersion", APP_VERSION,
+                    "version", version,
+                    "tagName", release.optString("tag_name", "v" + version),
+                    "releaseName", release.optString("name", "bad note " + version),
+                    "body", release.optString("body", ""),
+                    "htmlUrl", release.optString("html_url", RELEASES_PAGE_URL),
+                    "assetName", asset.optString("name", ""),
+                    "assetUrl", asset.optString("browser_download_url", ""),
+                    "assetSize", asset.optLong("size", 0L),
+                    "packageName", getPackageName(),
+                    "variant", updateVariantLabel()
+            );
+        }
+
+        private JSONObject fetchJson(String url) throws IOException, JSONException {
+            HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(16000);
+            connection.setRequestProperty("Accept", "application/vnd.github+json");
+            connection.setRequestProperty("User-Agent", "bad-note-android/" + APP_VERSION);
+            int code = connection.getResponseCode();
+            InputStream stream = code >= 200 && code < 300
+                    ? connection.getInputStream()
+                    : connection.getErrorStream();
+            String body = readStreamText(stream);
+            connection.disconnect();
+            if (code < 200 || code >= 300) {
+                throw new IOException("GitHub 릴리즈 확인 실패: HTTP " + code);
+            }
+            return new JSONObject(body);
+        }
+
+        @Nullable
+        private JSONObject selectReleaseAsset(JSONObject release, String version) {
+            JSONArray assets = release.optJSONArray("assets");
+            if (assets == null) return null;
+            String suffix = updateAssetSuffix();
+            JSONObject fallback = null;
+            for (int i = 0; i < assets.length(); i++) {
+                JSONObject asset = assets.optJSONObject(i);
+                if (asset == null) continue;
+                String name = asset.optString("name", "");
+                if (!name.toLowerCase().endsWith(".apk")) continue;
+                if (name.contains(version) && name.endsWith(suffix)) return asset;
+                if (fallback == null && name.endsWith(suffix)) fallback = asset;
+            }
+            return fallback;
+        }
+
+        private File downloadUpdateApk(JSONObject update) throws IOException, JSONException {
+            String url = update.optString("assetUrl", "");
+            if (url.isEmpty()) throw new IOException("다운로드 URL이 비어 있습니다.");
+            File directory = updateDownloadDirectory();
+            if (!directory.exists() && !directory.mkdirs()) {
+                throw new IOException("업데이트 다운로드 폴더를 만들지 못했습니다.");
+            }
+            cleanOldUpdateApks(directory);
+            String assetName = sanitizeAssetName(update.optString("assetName", "bad-note-update.apk"));
+            File output = new File(directory, assetName);
+
+            HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(60000);
+            connection.setRequestProperty("Accept", "application/octet-stream");
+            connection.setRequestProperty("User-Agent", "bad-note-android/" + APP_VERSION);
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) {
+                String error = readStreamText(connection.getErrorStream());
+                connection.disconnect();
+                throw new IOException("APK 다운로드 실패: HTTP " + code + (error.isEmpty() ? "" : " " + error));
+            }
+            long total = Math.max(connection.getContentLengthLong(), update.optLong("assetSize", 0L));
+            long downloaded = 0L;
+            long lastDispatchAt = 0L;
+            byte[] buffer = new byte[128 * 1024];
+            try (InputStream input = connection.getInputStream();
+                 FileOutputStream outputStream = new FileOutputStream(output)) {
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, read);
+                    downloaded += read;
+                    long now = System.currentTimeMillis();
+                    if (now - lastDispatchAt > 220L) {
+                        lastDispatchAt = now;
+                        dispatchDownloadProgress(update, downloaded, total);
+                    }
+                }
+            } finally {
+                connection.disconnect();
+            }
+            if (output.length() <= 0L) {
+                throw new IOException("다운로드한 APK가 비어 있습니다.");
+            }
+            dispatchDownloadProgress(update, output.length(), Math.max(total, output.length()));
+            return output;
+        }
+
+        private void installDownloadedApk() throws JSONException {
+            File file = downloadedUpdateApk;
+            if (file == null || !file.exists() || file.length() <= 0L) {
+                dispatchUpdateStatus(
+                        "error",
+                        jsonObject("message", "먼저 업데이트 APK를 다운로드하세요.")
+                );
+                return;
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    !getPackageManager().canRequestPackageInstalls()) {
+                dispatchUpdateStatus(
+                        "permission-required",
+                        latestUpdate == null
+                                ? jsonObject("message", "알 수 없는 앱 설치 권한이 필요합니다.")
+                                : withUpdateFields(latestUpdate, "message", "알 수 없는 앱 설치 권한이 필요합니다.")
+                );
+                openUnknownSourcesSettings();
+                return;
+            }
+            Uri uri = FileProvider.getUriForFile(
+                    MainActivity.this,
+                    getPackageName() + ".fileprovider",
+                    file
+            );
+            Intent intent = new Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+            dispatchUpdateStatus(
+                    "installing",
+                    latestUpdate == null
+                            ? jsonObject("fileSize", file.length())
+                            : withUpdateFields(latestUpdate, "fileSize", file.length())
+            );
+            startActivity(intent);
+        }
+
+        private void openUnknownSourcesSettings() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+            Intent intent = new Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName())
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                startActivity(intent);
+            } catch (Exception ignored) {
+            }
+        }
+
+        private File updateDownloadDirectory() {
+            File external = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            File base = external != null ? external : getCacheDir();
+            return new File(base, "updates");
+        }
+
+        private void cleanOldUpdateApks(File directory) {
+            File[] files = directory.listFiles();
+            if (files == null) return;
+            for (File file : files) {
+                if (file.isFile() && file.getName().toLowerCase().endsWith(".apk")) {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.delete();
+                }
+            }
+        }
+
+        private void dispatchDownloadProgress(JSONObject update, long downloaded, long total) throws JSONException {
+            int progress = total > 0L
+                    ? Math.max(0, Math.min(100, Math.round(downloaded * 100f / total)))
+                    : 0;
+            dispatchUpdateStatus(
+                    "downloading",
+                    withUpdateFields(
+                            update,
+                            "bytesDownloaded", downloaded,
+                            "totalBytes", total,
+                            "progress", progress
+                    )
+            );
+        }
+
+        private JSONObject withUpdateFields(JSONObject update, Object... fields) throws JSONException {
+            JSONObject output = new JSONObject(update == null ? "{}" : update.toString());
+            for (int i = 0; i + 1 < fields.length; i += 2) {
+                output.put(String.valueOf(fields[i]), fields[i + 1]);
+            }
+            return output;
+        }
+
+        private void dispatchUpdateStatus(String status, JSONObject payload) {
+            JSONObject detail;
+            try {
+                detail = new JSONObject(payload == null ? "{}" : payload.toString());
+                detail.put("status", status);
+                detail.put("currentVersion", APP_VERSION);
+                detail.put("packageName", getPackageName());
+                detail.put("variant", updateVariantLabel());
+            } catch (JSONException error) {
+                detail = jsonObject(
+                        "status", status,
+                        "currentVersion", APP_VERSION,
+                        "packageName", getPackageName(),
+                        "variant", updateVariantLabel()
+                );
+            }
+            dispatchNativeEvent("inkforge:native-update", detail);
+        }
+
+        private String updateAssetSuffix() {
+            return "com.inkforge.note5".equals(getPackageName())
+                    ? "SideBySide.apk"
+                    : "Update.apk";
+        }
+
+        private String updateVariantLabel() {
+            return "com.inkforge.note5".equals(getPackageName())
+                    ? "병행 설치용"
+                    : "업데이트용";
+        }
+
+        private String sanitizeAssetName(String name) {
+            String cleaned = name == null ? "" : name.replaceAll("[^A-Za-z0-9._-]", "_");
+            return cleaned.isEmpty() || !cleaned.endsWith(".apk")
+                    ? "bad-note-update.apk"
+                    : cleaned;
+        }
+
+        private String normalizeReleaseVersion(String tag) {
+            String value = tag == null ? "" : tag.trim();
+            if (value.startsWith("v") || value.startsWith("V")) value = value.substring(1);
+            int suffix = value.indexOf('-');
+            if (suffix >= 0) value = value.substring(0, suffix);
+            return value.replaceAll("[^0-9.]", "");
+        }
+
+        private int compareVersions(String left, String right) {
+            String[] leftParts = normalizeReleaseVersion(left).split("\\.");
+            String[] rightParts = normalizeReleaseVersion(right).split("\\.");
+            int count = Math.max(leftParts.length, rightParts.length);
+            for (int i = 0; i < count; i++) {
+                int leftValue = i < leftParts.length && !leftParts[i].isEmpty()
+                        ? Integer.parseInt(leftParts[i])
+                        : 0;
+                int rightValue = i < rightParts.length && !rightParts[i].isEmpty()
+                        ? Integer.parseInt(rightParts[i])
+                        : 0;
+                if (leftValue != rightValue) return Integer.compare(leftValue, rightValue);
+            }
+            return 0;
+        }
+
+        private String readStreamText(@Nullable InputStream stream) throws IOException {
+            if (stream == null) return "";
+            try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[32 * 1024];
+                int read;
+                while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                return output.toString("UTF-8");
+            }
         }
 
         private JSONObject recognizeImageTextPayload(

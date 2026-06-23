@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.6';
+  const VERSION = '3.3.7';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const HANDWRITING_OCR_DWELL_MS = 2800;
@@ -10,6 +10,13 @@
   const IDLE_OCR_TIMEOUT_MS = 2400;
   const SHAPE_HOLD_MS = 650;
   const BARREL_BUTTON_LATCH_MS = 3500;
+  const RELEASE_NOTES = [
+    '앱 시작 시 GitHub Releases의 최신 APK를 확인하는 자동 업데이트를 추가했습니다.',
+    '새 버전이 있으면 앱 안에서 변경 내역을 보고 다운로드 진행률을 확인할 수 있습니다.',
+    '다운로드가 끝나면 Android 설치 화면으로 이어지고, 설치 권한이 필요하면 설정 화면을 안내합니다.',
+    '업데이트 후 현재 버전의 변경 내역은 한 번만 표시됩니다.'
+  ];
+  const RELEASE_NOTES_LAST_VERSION_KEY = 'badnote.releaseNotes.lastVersion';
   const nativeApi = window.InkForgeNative;
   const pending = new Map();
   const ocrTimers = new Map();
@@ -32,12 +39,39 @@
   let recognitionReadyChipShown = false;
   let barrelRestoreTool = null;
   let barrelButtonLatchUntil = 0;
+  let updateSheet = null;
+  let updateCheckManual = false;
+  let updateState = { status: 'idle', release: null, progress: 0 };
 
   const uid = (prefix = 'id') => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const hasHangul = (text) => /[\u3131-\u318e\uac00-\ud7a3]/.test(String(text || ''));
   const hasLatin = (text) => /[A-Za-z]/.test(String(text || ''));
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+
+  function releaseNotesSeenKey(version = VERSION) {
+    return `badnote.releaseNotes.seen.${version}`;
+  }
+
+  function safeLocalStorageGet(key) {
+    try { return window.localStorage?.getItem(key); }
+    catch { return null; }
+  }
+
+  function safeLocalStorageSet(key, value) {
+    try { window.localStorage?.setItem(key, value); }
+    catch { /* ignored */ }
+  }
+
+  function formatBytes(value) {
+    const bytes = Number(value) || 0;
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${Math.max(0, Math.round(bytes))} B`;
+  }
 
   function markUserActivity() {
     lastUserActivityAt = Date.now();
@@ -832,6 +866,228 @@
     pullState = null;
   }
 
+  function releaseBodyToHtml(body, fallback = RELEASE_NOTES) {
+    const lines = String(body || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const selected = (lines.length ? lines : fallback).slice(0, 18);
+    if (!selected.length) return '<p>이번 버전의 변경 내역이 없습니다.</p>';
+    const items = selected.map((line) => {
+      const cleaned = line.replace(/^[-*]\s+/, '').replace(/^#{1,6}\s*/, '');
+      return `<li>${escapeHtml(cleaned)}</li>`;
+    }).join('');
+    return `<ul>${items}</ul>`;
+  }
+
+  function ensureUpdateSheet() {
+    if (updateSheet) return updateSheet;
+    updateSheet = document.createElement('section');
+    updateSheet.id = 'nativeUpdateSheet';
+    updateSheet.className = 'sheet modal update-sheet';
+    updateSheet.hidden = true;
+    updateSheet.setAttribute('aria-label', '앱 업데이트');
+    updateSheet.innerHTML = `
+      <header class="sheet-header">
+        <div>
+          <span id="nativeUpdateEyebrow" class="eyebrow">앱 업데이트</span>
+          <h2 id="nativeUpdateTitle">업데이트 확인</h2>
+        </div>
+        <button class="icon-button" data-update-action="close" aria-label="닫기">×</button>
+      </header>
+      <p id="nativeUpdateSummary" class="sheet-description">GitHub Releases에서 최신 버전을 확인합니다.</p>
+      <div id="nativeUpdateVersionRow" class="update-version-row">
+        <span><strong id="nativeUpdateVersion">-</strong><small id="nativeUpdateVariant">-</small></span>
+        <a id="nativeUpdateReleaseLink" class="update-release-link" href="#" target="_blank" rel="noopener">릴리즈</a>
+      </div>
+      <div id="nativeUpdateNotes" class="update-notes"></div>
+      <div id="nativeUpdateProgressBlock" class="update-progress-block">
+        <div id="nativeUpdateProgressBar" class="update-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="nativeUpdateProgressFill"></span>
+        </div>
+        <small id="nativeUpdateProgressText">대기 중</small>
+      </div>
+      <div class="sheet-actions update-actions">
+        <button id="nativeUpdateSecondary" class="secondary-button" data-update-action="close">나중에</button>
+        <button id="nativeUpdatePrimary" class="primary-button" data-update-action="check">확인</button>
+      </div>`;
+    const anchor = document.getElementById('toastHost');
+    (document.getElementById('app') || document.body).insertBefore(updateSheet, anchor || null);
+    return updateSheet;
+  }
+
+  function showUpdateSheet() {
+    const sheet = ensureUpdateSheet();
+    document.getElementById('modalBackdrop')?.removeAttribute('hidden');
+    sheet.hidden = false;
+    document.body.classList.add('modal-open');
+  }
+
+  function markReleaseNotesSeen() {
+    safeLocalStorageSet(releaseNotesSeenKey(VERSION), '1');
+    safeLocalStorageSet(RELEASE_NOTES_LAST_VERSION_KEY, VERSION);
+  }
+
+  function closeUpdateSheet() {
+    if (updateState.status === 'release-notes') markReleaseNotesSeen();
+    if (updateSheet) updateSheet.hidden = true;
+    const otherOpen = Array.from(document.querySelectorAll('.modal')).some((node) => !node.hidden);
+    if (!otherOpen) {
+      const backdrop = document.getElementById('modalBackdrop');
+      if (backdrop) backdrop.hidden = true;
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  function renderUpdateSheet() {
+    const sheet = ensureUpdateSheet();
+    const status = updateState.status || 'idle';
+    const release = updateState.release || {};
+    const isNotes = status === 'release-notes';
+    const title = isNotes ? `${VERSION} 업데이트 내역` :
+      status === 'available' ? `새 버전 ${release.version || ''}` :
+      status === 'downloaded' ? '업데이트 다운로드 완료' :
+      status === 'permission-required' ? '설치 권한 필요' :
+      status === 'installing' ? '설치 화면 열림' :
+      status === 'current' ? '최신 버전입니다' :
+      status === 'error' ? '업데이트 확인 실패' : '업데이트 확인';
+    const summary = isNotes ? '이번 버전에서 바뀐 내용을 확인하세요.' :
+      status === 'checking' ? 'GitHub Releases에서 최신 APK를 확인하고 있습니다.' :
+      status === 'available' ? '다운로드 후 Android 설치 화면에서 업데이트를 완료할 수 있습니다.' :
+      status === 'downloading' ? 'APK를 다운로드하는 중입니다. 화면을 닫아도 다운로드는 계속 진행됩니다.' :
+      status === 'downloaded' ? '다운로드가 끝났습니다. 설치를 눌러 Android 설치 화면으로 이동하세요.' :
+      status === 'permission-required' ? '설정에서 이 앱의 APK 설치를 허용한 뒤 설치를 다시 누르세요.' :
+      status === 'installing' ? 'Android 설치 화면에서 업데이트를 승인하세요.' :
+      status === 'current' ? `현재 ${VERSION} 버전을 사용 중입니다.` :
+      release.message || '네트워크 상태를 확인한 뒤 다시 시도하세요.';
+    sheet.dataset.status = status;
+    sheet.querySelector('#nativeUpdateEyebrow').textContent = isNotes ? '변경 내역' : 'GitHub Releases';
+    sheet.querySelector('#nativeUpdateTitle').textContent = title;
+    sheet.querySelector('#nativeUpdateSummary').textContent = summary;
+    sheet.querySelector('#nativeUpdateVersion').textContent = isNotes ? `bad note ${VERSION}` : `${release.currentVersion || VERSION} → ${release.version || VERSION}`;
+    sheet.querySelector('#nativeUpdateVariant').textContent = release.variant || 'Android APK';
+    const link = sheet.querySelector('#nativeUpdateReleaseLink');
+    link.hidden = !release.htmlUrl || isNotes;
+    link.href = release.htmlUrl || '#';
+    sheet.querySelector('#nativeUpdateNotes').innerHTML = releaseBodyToHtml(isNotes ? RELEASE_NOTES.join('\n') : release.body);
+    const progressBlock = sheet.querySelector('#nativeUpdateProgressBlock');
+    const progress = clamp(Number(updateState.progress ?? release.progress ?? 0), 0, 100);
+    progressBlock.hidden = isNotes || status === 'current' || status === 'error' || status === 'checking';
+    const progressBar = sheet.querySelector('#nativeUpdateProgressBar');
+    progressBar.setAttribute('aria-valuenow', String(progress));
+    sheet.querySelector('#nativeUpdateProgressFill').style.width = `${progress}%`;
+    const downloaded = release.bytesDownloaded || release.fileSize || 0;
+    const total = release.totalBytes || release.assetSize || 0;
+    sheet.querySelector('#nativeUpdateProgressText').textContent = status === 'downloaded'
+      ? `다운로드 완료 · ${formatBytes(release.fileSize || downloaded || total)}`
+      : status === 'available'
+        ? `APK 크기 ${formatBytes(total)}`
+        : `${progress}% · ${formatBytes(downloaded)} / ${formatBytes(total)}`;
+    const primary = sheet.querySelector('#nativeUpdatePrimary');
+    const secondary = sheet.querySelector('#nativeUpdateSecondary');
+    secondary.hidden = isNotes || status === 'current';
+    primary.disabled = status === 'checking' || status === 'downloading' || status === 'installing';
+    if (isNotes) {
+      primary.textContent = '확인';
+      primary.dataset.updateAction = 'ack-notes';
+    } else if (status === 'available') {
+      primary.textContent = '다운로드';
+      primary.dataset.updateAction = 'download';
+    } else if (status === 'downloaded' || status === 'permission-required') {
+      primary.textContent = status === 'permission-required' ? '설치 재시도' : '설치';
+      primary.dataset.updateAction = 'install';
+    } else if (status === 'current') {
+      primary.textContent = '닫기';
+      primary.dataset.updateAction = 'close';
+    } else {
+      primary.textContent = status === 'checking' ? '확인 중' : '다시 확인';
+      primary.dataset.updateAction = 'check';
+    }
+  }
+
+  function applyNativeUpdateState(detail = {}) {
+    const release = { ...(updateState.release || {}), ...detail };
+    const status = detail.status || updateState.status || 'idle';
+    const progress = Number.isFinite(Number(detail.progress)) ? Number(detail.progress) : updateState.progress || 0;
+    const manual = updateCheckManual;
+    updateState = { status, release, progress };
+    renderUpdateSheet();
+    const shouldOpen = manual || ['available', 'downloading', 'downloaded', 'permission-required', 'installing'].includes(status) || (manual && status === 'error');
+    if (shouldOpen) showUpdateSheet();
+    if (status === 'current' && manual) {
+      showUpdateSheet();
+      setTimeout(closeUpdateSheet, 1600);
+    }
+    if (status !== 'checking') updateCheckManual = false;
+  }
+
+  function requestUpdateCheck(manual = false) {
+    if (!nativeApi || typeof nativeApi.checkForUpdate !== 'function') {
+      if (manual) api?.toast?.('Android 앱에서만 업데이트 확인을 사용할 수 있습니다.');
+      return false;
+    }
+    updateCheckManual = manual;
+    if (manual) {
+      updateState = { status: 'checking', release: { currentVersion: VERSION }, progress: 0 };
+      renderUpdateSheet();
+      showUpdateSheet();
+    }
+    try {
+      nativeApi.checkForUpdate();
+      return true;
+    } catch (error) {
+      applyNativeUpdateState({ status: 'error', message: error.message || String(error) });
+      return false;
+    }
+  }
+
+  function requestUpdateDownload() {
+    if (!nativeApi || typeof nativeApi.downloadUpdate !== 'function') return;
+    updateState = { ...updateState, status: 'downloading', progress: 0 };
+    renderUpdateSheet();
+    try { nativeApi.downloadUpdate(); }
+    catch (error) { applyNativeUpdateState({ status: 'error', message: error.message || String(error) }); }
+  }
+
+  function requestUpdateInstall() {
+    if (!nativeApi || typeof nativeApi.installDownloadedUpdate !== 'function') return;
+    try { nativeApi.installDownloadedUpdate(); }
+    catch (error) { applyNativeUpdateState({ status: 'error', message: error.message || String(error) }); }
+  }
+
+  function handleUpdateAction(action) {
+    if (action === 'close') closeUpdateSheet();
+    else if (action === 'ack-notes') closeUpdateSheet();
+    else if (action === 'check') requestUpdateCheck(true);
+    else if (action === 'download') requestUpdateDownload();
+    else if (action === 'install') requestUpdateInstall();
+  }
+
+  function handleNativeUpdate(event) {
+    applyNativeUpdateState(event.detail || {});
+  }
+
+  function showInstalledReleaseNotesOnce(force = false) {
+    if (!force && !nativeAvailable()) return false;
+    const seenKey = releaseNotesSeenKey(VERSION);
+    const seen = safeLocalStorageGet(seenKey) === '1';
+    const lastVersion = safeLocalStorageGet(RELEASE_NOTES_LAST_VERSION_KEY);
+    if (seen || lastVersion === VERSION) {
+      safeLocalStorageSet(RELEASE_NOTES_LAST_VERSION_KEY, VERSION);
+      return false;
+    }
+    updateState = {
+      status: 'release-notes',
+      release: {
+        version: VERSION,
+        releaseName: `bad note ${VERSION}`,
+        body: RELEASE_NOTES.join('\n'),
+        variant: '설치됨'
+      },
+      progress: 0
+    };
+    renderUpdateSheet();
+    showUpdateSheet();
+    return true;
+  }
+
   function bindPullToAdd() {
     const viewport = document.getElementById('editorViewport');
     if (!viewport) return;
@@ -868,6 +1124,10 @@
   function injectSettings() {
     const list = document.querySelector('#settingsSheet .settings-list');
     if (!list || document.getElementById('nativeAutoOcrToggle')) return;
+    const updateRow = document.createElement('div');
+    updateRow.className = 'setting-row update-setting-row';
+    updateRow.innerHTML = '<span><strong>앱 자동 업데이트</strong><small>앱 시작 시 GitHub Releases를 확인하고, 새 APK가 있으면 업데이트 화면을 표시합니다.</small></span><button class="secondary-button compact-action" data-action="check-app-update" type="button">확인</button>';
+    list.appendChild(updateRow);
     const autoRow = document.createElement('label');
     autoRow.className = 'setting-row';
     autoRow.innerHTML = '<span><strong>손글씨 OCR 자동 등록</strong><small>화면에 보이는 페이지에 머문 뒤 한글·영문 OCR 검색 색인을 유휴 상태에서 갱신합니다.</small></span><input id="nativeAutoOcrToggle" type="checkbox" />';
@@ -897,6 +1157,13 @@
 
   function bindGlobalActions() {
     document.addEventListener('click', (event) => {
+      const updateTarget = event.target.closest('[data-update-action]');
+      if (updateTarget) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        handleUpdateAction(updateTarget.dataset.updateAction);
+        return;
+      }
       const target = event.target.closest('[data-action]');
       if (!target) return;
       if (target.dataset.action === 'new-note-pdf') {
@@ -906,6 +1173,10 @@
       } else if (target.dataset.action === 'native-recognition-status') {
         event.preventDefault();
         document.querySelector('[data-action="open-settings"]')?.click();
+      } else if (target.dataset.action === 'check-app-update') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        requestUpdateCheck(true);
       }
     }, true);
   }
@@ -977,6 +1248,7 @@
     window.addEventListener('inkforge:native-stylus', handleNativeStylus);
     window.addEventListener('inkforge:native-stylus-key', handleNativeStylusKey);
     window.addEventListener('inkforge:native-model-status', handleModelStatus);
+    window.addEventListener('inkforge:native-update', handleNativeUpdate);
 
     const stack = document.getElementById('pageStack');
     if (stack) new MutationObserver(() => scanCurrentPageSoon()).observe(stack, { childList: true });
@@ -991,12 +1263,17 @@
     }
     updateActivePageDwell('initialize');
     scanCurrentPageSoon();
+    setTimeout(() => showInstalledReleaseNotesOnce(false), 600);
+    setTimeout(() => requestUpdateCheck(false), 1700);
     window.__inkforgeNativeBridge = {
       version: VERSION,
       ready: true,
       autoIndexPage,
       recognizeNativeInk,
       isRecentStylusEvent,
+      checkForUpdate: () => requestUpdateCheck(true),
+      applyUpdateState: applyNativeUpdateState,
+      showReleaseNotesOnce: () => showInstalledReleaseNotesOnce(true),
       get lastStylus() { return lastStylusDetail; },
       get barrelButtonActive() { return performance.now() < barrelButtonLatchUntil; }
     };

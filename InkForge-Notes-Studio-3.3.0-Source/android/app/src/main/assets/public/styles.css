@@ -590,6 +590,32 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .sheet-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-top: 22px; }
 .sheet .secondary-button { color: #444a52; background: #f0f2f5; border-color: #e1e4e8; }
 
+.update-sheet { width: min(620px, calc(100vw - 28px)); }
+.update-version-row {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid #dfe5ec;
+  border-radius: 14px;
+  background: #f6f8fb;
+}
+.update-version-row span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.update-version-row strong { font-size: 16px; color: #25303a; word-break: break-word; }
+.update-version-row small { color: var(--muted); font-size: 12px; }
+.update-release-link { flex: 0 0 auto; color: var(--accent); font-size: 12px; font-weight: 800; }
+.update-notes { margin-top: 14px; max-height: 220px; overflow: auto; padding: 13px 15px; border-radius: 14px; background: #fbfcfd; border: 1px solid #e2e6eb; color: #3d4650; }
+.update-notes ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; }
+.update-notes li { line-height: 1.45; font-size: 13px; }
+.update-progress-block { min-height: 54px; margin-top: 14px; display: grid; gap: 7px; }
+.update-progress-block[hidden] { display: none; }
+.update-progress-bar { height: 12px; overflow: hidden; border-radius: 999px; background: #e5e9ef; border: 1px solid #d9dee6; }
+.update-progress-bar span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2d83c5, #25a56a); transition: width .18s ease; }
+.update-progress-block small { color: var(--muted); font-size: 12px; }
+.update-setting-row .compact-action { min-width: 70px; height: 38px; padding: 0 13px; }
+
 .template-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
 .template-option { min-height: 152px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 10px; border: 1px solid #dde1e6; border-radius: 15px; background: #fafbfc; }
 .template-option:hover { background: #f2f6fa; }

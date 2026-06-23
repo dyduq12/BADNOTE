@@ -129,6 +129,49 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         }
         results["ocr_toolbar"] = await page.locator("#ocrToolbarButton").count() == 1
         results["pdf_tools_ready"] = await page.evaluate("window.__inkforgePdf.ready")
+        update_ui = await page.evaluate("""
+          () => {
+            const bridge = window.__inkforgeNativeBridge;
+            bridge.applyUpdateState({
+              status: 'available',
+              currentVersion: '3.3.7',
+              version: '9.9.0',
+              variant: '업데이트용',
+              assetSize: 10485760,
+              body: '- 자동 업데이트\\n- 진행률 표시'
+            });
+            const sheet = document.getElementById('nativeUpdateSheet');
+            const availableVisible = sheet && !sheet.hidden && sheet.dataset.status === 'available' && sheet.textContent.includes('9.9.0');
+            bridge.applyUpdateState({
+              status: 'downloading',
+              progress: 42,
+              bytesDownloaded: 420,
+              totalBytes: 1000
+            });
+            const progress = document.getElementById('nativeUpdateProgressBar')?.getAttribute('aria-valuenow');
+            const progressWidth = document.getElementById('nativeUpdateProgressFill')?.style.width;
+            document.querySelectorAll('.modal').forEach(node => node.hidden = true);
+            document.getElementById('modalBackdrop').hidden = true;
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.7');
+            localStorage.removeItem('badnote.releaseNotes.lastVersion');
+            const first = bridge.showReleaseNotesOnce();
+            const notesVisible = !document.getElementById('nativeUpdateSheet').hidden && document.getElementById('nativeUpdateSheet').dataset.status === 'release-notes';
+            document.querySelector('[data-update-action="ack-notes"]').click();
+            const second = bridge.showReleaseNotesOnce();
+            document.querySelectorAll('.modal').forEach(node => node.hidden = true);
+            document.getElementById('modalBackdrop').hidden = true;
+            return {
+              availableVisible,
+              progress,
+              progressWidth,
+              notesVisible,
+              first,
+              second,
+              passed: availableVisible && progress === '42' && progressWidth === '42%' && notesVisible && first === true && second === false
+            };
+          }
+        """)
+        results["native_update_ui"] = update_ui
         if args.screenshots:
             args.screenshots.mkdir(parents=True, exist_ok=True)
             await page.screenshot(path=str(args.screenshots / "inkforge-3.2-library.png"), full_page=True)
@@ -539,7 +582,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
     results["dialogs"] = dialogs
     results["console_errors"] = errors
-    required_scalars = results.get("version") == "3.3.6" and results.get("upgrade_version") == "3.3.6" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
+    required_scalars = results.get("version") == "3.3.7" and results.get("upgrade_version") == "3.3.7" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
     results["passed"] = required_scalars and not errors and not dialogs and all(value.get("passed", True) if isinstance(value, dict) else True for key, value in results.items() if key not in {"console_errors", "dialogs"})
     return results
 
