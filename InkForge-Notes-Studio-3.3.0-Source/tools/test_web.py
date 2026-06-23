@@ -189,6 +189,50 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             };
           }
         """)
+        results["zoom_anchor_stability"] = await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const doc = api.currentDocument();
+            while (doc.pages.length < 4) doc.pages.push(api.blankPage('grid'));
+            api.renderEditorPages();
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            api.scrollToPage(2, false);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const viewport = document.getElementById('editorViewport');
+            const wrap = document.querySelector('.page-wrap[data-page-index="2"]');
+            const ratio = { x: .62, y: .54 };
+            const clientForRatio = () => {
+              const rect = wrap.getBoundingClientRect();
+              return { clientX: rect.left + rect.width * ratio.x, clientY: rect.top + rect.height * ratio.y };
+            };
+            const driftFrom = (client) => {
+              const rect = wrap.getBoundingClientRect();
+              return {
+                dx: rect.left + rect.width * ratio.x - client.clientX,
+                dy: rect.top + rect.height * ratio.y - client.clientY
+              };
+            };
+            const anchor = clientForRatio();
+            api.setZoom(2.4, anchor);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const zoomIn = driftFrom(anchor);
+            api.setZoom(1.1, anchor);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const zoomOut = driftFrom(anchor);
+            const maxVerticalDrift = Math.max(Math.abs(zoomIn.dy), Math.abs(zoomOut.dy));
+            const maxHorizontalDrift = Math.max(Math.abs(zoomIn.dx), Math.abs(zoomOut.dx));
+            api.setZoom(1.5, anchor);
+            return {
+              pageIndex: api.state.currentPageIndex,
+              scrollTop: viewport.scrollTop,
+              zoomIn,
+              zoomOut,
+              maxVerticalDrift,
+              maxHorizontalDrift,
+              passed: api.state.currentPageIndex === 2 && maxVerticalDrift <= 3 && Math.abs(zoomIn.dx) <= 3
+            };
+          }
+        """)
 
         # Automatic handwritten equation recognition from normal page strokes.
         auto_math_result = await page.evaluate("""

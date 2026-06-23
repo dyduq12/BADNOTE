@@ -1543,6 +1543,85 @@
     return clamp(best, 0, doc.pages.length - 1);
   }
 
+  function viewportClientPoint(anchor, viewport) {
+    const rect = viewport.getBoundingClientRect();
+    const fallbackX = rect.left + viewport.clientWidth / 2;
+    const fallbackY = rect.top + viewport.clientHeight / 2;
+    const rawX = Number.isFinite(anchor?.clientX) ? Number(anchor.clientX) : fallbackX;
+    const rawY = Number.isFinite(anchor?.clientY) ? Number(anchor.clientY) : fallbackY;
+    const clientX = clamp(rawX, rect.left, rect.right);
+    const clientY = clamp(rawY, rect.top, rect.bottom);
+    return { clientX, clientY, viewportX: clientX - rect.left, viewportY: clientY - rect.top };
+  }
+
+  function zoomAnchorCandidates(preferredIndex = state.currentPageIndex) {
+    const doc = currentDocument();
+    if (!doc) return [];
+    const indices = new Set();
+    const addNear = (index, radius = 2) => {
+      if (!Number.isFinite(index)) return;
+      for (let offset = -radius; offset <= radius; offset++) {
+        const next = Math.round(index) + offset;
+        if (next >= 0 && next < doc.pages.length) indices.add(next);
+      }
+    };
+    addNear(preferredIndex);
+    addNear(state.currentPageIndex);
+    addNear(estimatePageIndexFromScroll());
+    return [...indices];
+  }
+
+  function zoomAnchorWrapAt(clientX, clientY, preferredIndex = state.currentPageIndex) {
+    const direct = document.elementFromPoint(clientX, clientY)?.closest?.('.page-wrap');
+    if (direct?.dataset?.pageIndex != null) return direct;
+    let best = null, bestScore = Infinity;
+    zoomAnchorCandidates(preferredIndex).forEach((index) => {
+      const wrap = $(`.page-wrap[data-page-index="${index}"]`);
+      if (!wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      const dx = clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0;
+      const dy = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+      const score = dy * dy + dx * dx * .35;
+      if (score < bestScore) { bestScore = score; best = wrap; }
+    });
+    return best;
+  }
+
+  function captureZoomAnchor(anchor = null, preferredIndex = state.currentPageIndex) {
+    const viewport = $('#editorViewport');
+    if (!viewport) return null;
+    const point = viewportClientPoint(anchor, viewport);
+    const wrap = zoomAnchorWrapAt(point.clientX, point.clientY, preferredIndex);
+    if (!wrap) return null;
+    const rect = wrap.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return {
+      ...point,
+      pageIndex: Number(wrap.dataset.pageIndex),
+      ratioX: clamp((point.clientX - rect.left) / rect.width, 0, 1),
+      ratioY: clamp((point.clientY - rect.top) / rect.height, 0, 1)
+    };
+  }
+
+  function retargetZoomAnchor(snapshot, clientX, clientY) {
+    const viewport = $('#editorViewport');
+    if (!snapshot || !viewport) return null;
+    return { ...snapshot, ...viewportClientPoint({ clientX, clientY }, viewport) };
+  }
+
+  function restoreZoomAnchor(snapshot) {
+    const viewport = $('#editorViewport');
+    const wrap = snapshot && $(`.page-wrap[data-page-index="${snapshot.pageIndex}"]`);
+    if (!viewport || !wrap) return false;
+    const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const nextLeft = wrap.offsetLeft + wrap.offsetWidth * snapshot.ratioX - snapshot.viewportX;
+    const nextTop = wrap.offsetTop + wrap.offsetHeight * snapshot.ratioY - snapshot.viewportY;
+    viewport.scrollLeft = clamp(nextLeft, 0, maxLeft);
+    viewport.scrollTop = clamp(nextTop, 0, maxTop);
+    return true;
+  }
+
   function mountPageCanvas(index) {
     const wrap = $(`.page-wrap[data-page-index="${index}"]`);
     if (!wrap || wrap.querySelector('.page-canvas')) return;
@@ -1874,15 +1953,16 @@
     const newZoom = clamp(value, .08, 8);
     if (Math.abs(newZoom - oldZoom) < .001) return;
     state.suppressPageUpdateUntil = performance.now() + ZOOM_PAGE_SUPPRESS_MS;
-    const rect = viewport.getBoundingClientRect();
-    const anchorX = anchor ? anchor.clientX - rect.left : viewport.clientWidth / 2;
-    const anchorY = anchor ? anchor.clientY - rect.top : viewport.clientHeight / 2;
-    const contentX = (viewport.scrollLeft + anchorX) / oldZoom;
-    const contentY = (viewport.scrollTop + anchorY) / oldZoom;
+    const point = viewportClientPoint(anchor, viewport);
+    const zoomAnchor = captureZoomAnchor(anchor, state.currentPageIndex);
+    const contentX = (viewport.scrollLeft + point.viewportX) / oldZoom;
+    const contentY = (viewport.scrollTop + point.viewportY) / oldZoom;
     state.zoom = newZoom;
     updatePageSizing({ render: false });
-    viewport.scrollLeft = Math.max(0, contentX * newZoom - anchorX);
-    viewport.scrollTop = Math.max(0, contentY * newZoom - anchorY);
+    if (!restoreZoomAnchor(zoomAnchor)) {
+      viewport.scrollLeft = Math.max(0, contentX * newZoom - point.viewportX);
+      viewport.scrollTop = Math.max(0, contentY * newZoom - point.viewportY);
+    }
     scheduleZoomRender();
     renderActiveToolMenu();
     updateObjectMenu();
@@ -2390,6 +2470,7 @@
       initialZoom: state.zoom,
       initialScrollLeft: viewport.scrollLeft,
       initialScrollTop: viewport.scrollTop,
+      zoomAnchor: captureZoomAnchor({ clientX: center.x, clientY: center.y }, state.currentPageIndex),
       pinched: false,
       moved: false
     };
@@ -2414,10 +2495,13 @@
         const anchorX = center.x - rect.left, anchorY = center.y - rect.top;
         const contentX = (gesture.initialScrollLeft + (gesture.startCenter.x - rect.left)) / gesture.initialZoom;
         const contentY = (gesture.initialScrollTop + (gesture.startCenter.y - rect.top)) / gesture.initialZoom;
+        const zoomAnchor = retargetZoomAnchor(gesture.zoomAnchor, center.x, center.y);
         state.zoom = nextZoom;
         updatePageSizing({ render: false });
-        viewport.scrollLeft = Math.max(0, contentX * nextZoom - anchorX);
-        viewport.scrollTop = Math.max(0, contentY * nextZoom - anchorY);
+        if (!restoreZoomAnchor(zoomAnchor)) {
+          viewport.scrollLeft = Math.max(0, contentX * nextZoom - anchorX);
+          viewport.scrollTop = Math.max(0, contentY * nextZoom - anchorY);
+        }
         scheduleZoomRender();
       } else {
         viewport.scrollLeft = gesture.initialScrollLeft - deltaX;
@@ -2473,6 +2557,7 @@
           const viewport = $('#editorViewport');
           state.touchGesture.initialScrollLeft = viewport.scrollLeft;
           state.touchGesture.initialScrollTop = viewport.scrollTop;
+          state.touchGesture.zoomAnchor = captureZoomAnchor({ clientX: state.touchGesture.startCenter.x, clientY: state.touchGesture.startCenter.y }, pageIndex);
         }
         if (state.drawSession?.kind === 'stroke') { state.drawSession = null; renderPageCanvas(pageIndex); }
       }
