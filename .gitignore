@@ -10,6 +10,9 @@
 **/__pycache__/
 **/*.py[cod]
 
+# Release binaries are uploaded to GitHub Releases, not committed.
+*.apk
+
 # Local Android environment and signing material
 **/local.properties
 **/local-signing.properties
