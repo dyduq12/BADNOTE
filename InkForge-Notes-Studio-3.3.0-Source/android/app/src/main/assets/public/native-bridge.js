@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.20';
+  const VERSION = '3.3.21';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const HANDWRITING_OCR_DWELL_MS = 2800;
@@ -11,9 +11,9 @@
   const SHAPE_HOLD_MS = 650;
   const BARREL_BUTTON_LATCH_MS = 3500;
   const RELEASE_NOTES = [
-    'PDF 필기, 텍스트, 도형 주석을 XFDF 파일로 내보낼 수 있습니다.',
-    '파일 즐겨찾기를 문서 옵션에서도 켜고 끌 수 있으며 즐겨찾기 문서는 목록 상단에 고정됩니다.',
-    '페이지 추가 버튼을 페이지 내부가 아니라 페이지와 페이지 사이에 배치했습니다.'
+    '설정에서 한국어, 영어, 일본어, 중국어, 포르투갈어 표시 언어를 선택할 수 있습니다.',
+    '선택한 언어는 저장되어 앱을 다시 열어도 유지됩니다.',
+    'README를 프로젝트 소개, 설치, 기능, 검증, 릴리즈 흐름 중심으로 다시 정리했습니다.'
   ];
   const RELEASE_NOTES_LAST_VERSION_KEY = 'badnote.releaseNotes.lastVersion';
   const nativeApi = window.InkForgeNative;
@@ -1148,6 +1148,7 @@
     status.innerHTML = '<strong>네이티브 인식 엔진</strong><span>모델 상태 확인 중…</span>';
     list.appendChild(status);
     modelStatusNode = status.querySelector('span');
+    api?.localizeSubtree?.(list);
   }
 
   function handleModelStatus(event) {

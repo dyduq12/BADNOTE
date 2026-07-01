@@ -742,6 +742,18 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .setting-row strong { font-size: 13px; }
 .setting-row small { color: var(--muted); font-size: 11px; line-height: 1.4; }
 .setting-row input { width: 44px; height: 24px; accent-color: var(--accent); }
+.language-select {
+  min-width: 132px;
+  height: 38px;
+  padding: 0 34px 0 12px;
+  border: 1px solid #d5dae2;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
 
 .toast-host { position: fixed; z-index: 100; left: 50%; bottom: calc(var(--safe-bottom) + 26px); transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .toast { min-width: 180px; max-width: min(88vw, 520px); min-height: 42px; display: flex; align-items: center; justify-content: center; padding: 9px 15px; border-radius: 13px; background: rgba(30,31,34,.94); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.24); font-size: 13px; font-weight: 650; animation: toast-in .2s ease; }

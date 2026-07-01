@@ -6,6 +6,7 @@ import asyncio
 import json
 import pathlib
 import re
+import sys
 import time
 from typing import Any
 
@@ -152,7 +153,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             const progressWidth = document.getElementById('nativeUpdateProgressFill')?.style.width;
             document.querySelectorAll('.modal').forEach(node => node.hidden = true);
             document.getElementById('modalBackdrop').hidden = true;
-            localStorage.removeItem('badnote.releaseNotes.seen.3.3.20');
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.21');
             localStorage.removeItem('badnote.releaseNotes.lastVersion');
             const first = bridge.showReleaseNotesOnce();
             const notesVisible = !document.getElementById('nativeUpdateSheet').hidden && document.getElementById('nativeUpdateSheet').dataset.status === 'release-notes';
@@ -172,6 +173,50 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
           }
         """)
         results["native_update_ui"] = update_ui
+        results["language_setting"] = await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const expectations = {
+              en: { title: 'Documents', settings: 'Settings', row: 'Language' },
+              ja: { title: 'ドキュメント', settings: '設定', row: '言語' },
+              zh: { title: '文档', settings: '设置', row: '语言' },
+              pt: { title: 'Documentos', settings: 'Configurações', row: 'Idioma' }
+            };
+            api.state.settings.language = 'ko';
+            await api.storage.setSetting('preferences', api.state.settings);
+            api.refreshLocalizedUi();
+            document.querySelector('[data-action="open-settings"]').click();
+            await delay(80);
+            const select = document.getElementById('languageSelect');
+            const seen = {};
+            for (const [lang, expected] of Object.entries(expectations)) {
+              select.value = lang;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              await delay(120);
+              const stored = await api.storage.getSetting('preferences', {});
+              seen[lang] = {
+                state: api.state.settings.language,
+                stored: stored.language,
+                htmlLang: document.documentElement.lang,
+                title: document.getElementById('libraryTitle')?.textContent || '',
+                settings: document.querySelector('#settingsSheet h2')?.textContent || '',
+                row: document.querySelector('.language-setting-row strong')?.textContent || '',
+                passed: api.state.settings.language === lang &&
+                  stored.language === lang &&
+                  document.getElementById('libraryTitle')?.textContent === expected.title &&
+                  document.querySelector('#settingsSheet h2')?.textContent === expected.settings &&
+                  document.querySelector('.language-setting-row strong')?.textContent === expected.row
+              };
+            }
+            select.value = 'ko';
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            await delay(120);
+            document.querySelectorAll('.modal').forEach(node => node.hidden = true);
+            document.getElementById('modalBackdrop').hidden = true;
+            return { seen, passed: Object.values(seen).every(item => item.passed) && api.state.settings.language === 'ko' };
+          }
+        """)
         results["folder_creation"] = await page.evaluate("""
           async () => {
             const api = window.__inkforge;
@@ -1476,12 +1521,14 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
     results["dialogs"] = dialogs
     results["console_errors"] = errors
-    required_scalars = results.get("version") == "3.3.20" and results.get("upgrade_version") == "3.3.20" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
+    required_scalars = results.get("version") == "3.3.21" and results.get("upgrade_version") == "3.3.21" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
     results["passed"] = required_scalars and not errors and not dialogs and all(value.get("passed", True) if isinstance(value, dict) else True for key, value in results.items() if key not in {"console_errors", "dialogs"})
     return results
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser()
     parser.add_argument("--web", type=pathlib.Path, required=True)
     parser.add_argument("--chromium", default="/usr/bin/chromium")

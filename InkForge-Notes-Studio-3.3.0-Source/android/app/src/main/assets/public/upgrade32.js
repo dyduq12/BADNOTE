@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.20';
+  const VERSION = '3.3.21';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const AUTO_MATH_DELAY = 1050;
@@ -676,6 +676,7 @@
     spen.className = 'setting-row';
     spen.innerHTML = `<span><strong>S Pen 버튼 지우개</strong><small>펜 버튼을 누르는 동안 지우개로 쓰고, 놓으면 이전 도구로 돌아갑니다.</small></span><input id="sPenGesturesToggle" type="checkbox" />`;
     list.append(autoMath, spen);
+    api.localizeSubtree?.(list);
     $('#autoMathToggle').checked = api.state.settings.autoMath === true;
     $('#sPenGesturesToggle').checked = api.state.settings.sPenGestures !== false;
     list.addEventListener('change', async (event) => {
