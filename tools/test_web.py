@@ -153,12 +153,22 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             const progressWidth = document.getElementById('nativeUpdateProgressFill')?.style.width;
             document.querySelectorAll('.modal').forEach(node => node.hidden = true);
             document.getElementById('modalBackdrop').hidden = true;
-            localStorage.removeItem('badnote.releaseNotes.seen.3.3.21');
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.22');
             localStorage.removeItem('badnote.releaseNotes.lastVersion');
             const first = bridge.showReleaseNotesOnce();
             const notesVisible = !document.getElementById('nativeUpdateSheet').hidden && document.getElementById('nativeUpdateSheet').dataset.status === 'release-notes';
             document.querySelector('[data-update-action="ack-notes"]').click();
             const second = bridge.showReleaseNotesOnce();
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.22');
+            localStorage.removeItem('badnote.releaseNotes.lastVersion');
+            window.__inkforge.state.settings.language = 'en';
+            window.__inkforge.refreshLocalizedUi();
+            const englishFirst = bridge.showReleaseNotesOnce();
+            const englishText = document.getElementById('nativeUpdateSheet')?.textContent || '';
+            const englishNotesVisible = englishFirst && englishText.includes('3.3.22 release notes') && englishText.includes('Removed the right-side vertical page scroll rail');
+            document.querySelector('[data-update-action="ack-notes"]').click();
+            window.__inkforge.state.settings.language = 'ko';
+            window.__inkforge.refreshLocalizedUi();
             document.querySelectorAll('.modal').forEach(node => node.hidden = true);
             document.getElementById('modalBackdrop').hidden = true;
             return {
@@ -168,7 +178,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
               notesVisible,
               first,
               second,
-              passed: availableVisible && progress === '42' && progressWidth === '42%' && notesVisible && first === true && second === false
+              englishNotesVisible,
+              passed: availableVisible && progress === '42' && progressWidth === '42%' && notesVisible && first === true && second === false && englishNotesVisible
             };
           }
         """)
@@ -440,57 +451,53 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         results["zoom"] = await page.evaluate("window.__inkforge.state.zoom")
         results["math_engine"] = await page.evaluate("window.__inkforge.evaluateMath('(12+8)*3',{}).result")
         results["auto_math_default_off"] = await page.evaluate("window.__inkforge.state.settings.autoMath === false")
-        results["page_scroll_rail"] = await page.evaluate("""
+        results["page_sidebar_grid"] = await page.evaluate("""
           async () => {
             const api = window.__inkforge;
+            api.setZoom(1);
             while (api.currentDocument().pages.length < 3) api.addPage();
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            const rail = document.getElementById('pageScrollRail');
+            api.state.sidebarOpen = true;
+            api.state.sidebarTab = 'pages';
+            api.renderSidebar();
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const railMissing = !document.getElementById('pageScrollRail') && !document.querySelector('.page-scroll-rail');
+            const sidebar = document.getElementById('pageSidebar');
+            const editor = document.getElementById('editorView');
+            const items = [...document.querySelectorAll('.page-thumb-item')];
+            const first = items[0]?.getBoundingClientRect();
+            const second = items[1]?.getBoundingClientRect();
+            const twoColumns = !!first && !!second && Math.abs(first.top - second.top) < 4 && second.left > first.right;
+            const card = document.querySelector('.page-thumb-card')?.getBoundingClientRect();
+            const cardRatio = card ? Math.abs((card.width / Math.max(1, card.height)) - (1000 / 1414)) < .08 : false;
+            const pageWrap = document.querySelector(`.page-wrap[data-page-index="${api.state.currentPageIndex}"]`);
+            const sidebarRect = sidebar.getBoundingClientRect();
+            const wrapRect = pageWrap.getBoundingClientRect();
+            const visibleAreaLeft = sidebarRect.right - 1;
+            const movedOutFromUnderSidebar = editor.classList.contains('is-sidebar-open') && wrapRect.left >= visibleAreaLeft;
             const input = document.getElementById('pageJumpInput');
-            const viewport = document.getElementById('editorViewport');
-            api.hidePageScrollRail();
-            api.updatePageScrollRail();
-            const initial = getComputedStyle(rail);
-            const initialHidden = !!rail && !rail.classList.contains('is-visible') && initial.pointerEvents === 'none';
-            viewport.scrollTop += 96;
-            viewport.dispatchEvent(new Event('scroll'));
-            await new Promise(resolve => setTimeout(resolve, 90));
-            const revealed = getComputedStyle(rail);
-            const visibleAfterScroll = rail.classList.contains('is-visible') && Number(revealed.opacity) > 0.5 && revealed.pointerEvents === 'auto';
             input.value = '2';
             document.querySelector('[data-action="go-page-number"]').click();
-            await new Promise(resolve => setTimeout(resolve, 40));
-            api.state.drawSession = { kind: 'stroke', pageIndex: api.state.currentPageIndex, pointerId: 991 };
-            api.updatePageScrollRail();
-            const duringWriting = getComputedStyle(rail);
-            const disabledDuringWriting = !rail.classList.contains('is-visible') && rail.classList.contains('is-writing-disabled') && duringWriting.pointerEvents === 'none';
-            api.state.drawSession = null;
-            api.updatePageScrollRail();
-            api.revealPageScrollRail();
-            await new Promise(resolve => setTimeout(resolve, 40));
-            const beforeStylusIndex = api.state.currentPageIndex;
-            rail.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'pen', pointerId: 992, clientX: 0, clientY: 0 }));
-            await new Promise(resolve => setTimeout(resolve, 20));
-            const stylusPointerBlocked = !rail.classList.contains('is-visible') && api.state.currentPageIndex === beforeStylusIndex;
+            await new Promise(resolve => setTimeout(resolve, 160));
             return {
-              exists: !!rail,
-              initialHidden,
-              visibleAfterScroll,
-              disabledDuringWriting,
-              stylusPointerBlocked,
+              railMissing,
+              sidebarOpen: sidebar.classList.contains('is-open'),
+              twoColumns,
+              cardRatio,
+              movedOutFromUnderSidebar,
               value: input.value,
               pageIndex: api.state.currentPageIndex
             };
           }
         """)
-        results["page_scroll_rail"]["passed"] = bool(
-            results["page_scroll_rail"].get("exists")
-            and results["page_scroll_rail"].get("initialHidden")
-            and results["page_scroll_rail"].get("visibleAfterScroll")
-            and results["page_scroll_rail"].get("disabledDuringWriting")
-            and results["page_scroll_rail"].get("stylusPointerBlocked")
-            and results["page_scroll_rail"].get("value") == "2"
-            and results["page_scroll_rail"].get("pageIndex") == 1
+        results["page_sidebar_grid"]["passed"] = bool(
+            results["page_sidebar_grid"].get("railMissing")
+            and results["page_sidebar_grid"].get("sidebarOpen")
+            and results["page_sidebar_grid"].get("twoColumns")
+            and results["page_sidebar_grid"].get("cardRatio")
+            and results["page_sidebar_grid"].get("movedOutFromUnderSidebar")
+            and results["page_sidebar_grid"].get("value") == "2"
+            and results["page_sidebar_grid"].get("pageIndex") == 1
         )
         results["last_page_restore"] = await page.evaluate("""
           async () => {
@@ -1521,7 +1528,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
     results["dialogs"] = dialogs
     results["console_errors"] = errors
-    required_scalars = results.get("version") == "3.3.21" and results.get("upgrade_version") == "3.3.21" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
+    required_scalars = results.get("version") == "3.3.22" and results.get("upgrade_version") == "3.3.22" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
     results["passed"] = required_scalars and not errors and not dialogs and all(value.get("passed", True) if isinstance(value, dict) else True for key, value in results.items() if key not in {"console_errors", "dialogs"})
     return results
 

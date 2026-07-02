@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.21';
+  const VERSION = '3.3.22';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const HANDWRITING_OCR_DWELL_MS = 2800;
@@ -10,11 +10,215 @@
   const IDLE_OCR_TIMEOUT_MS = 2400;
   const SHAPE_HOLD_MS = 650;
   const BARREL_BUTTON_LATCH_MS = 3500;
-  const RELEASE_NOTES = [
-    '설정에서 한국어, 영어, 일본어, 중국어, 포르투갈어 표시 언어를 선택할 수 있습니다.',
-    '선택한 언어는 저장되어 앱을 다시 열어도 유지됩니다.',
-    'README를 프로젝트 소개, 설치, 기능, 검증, 릴리즈 흐름 중심으로 다시 정리했습니다.'
-  ];
+  const RELEASE_NOTES = {
+    ko: [
+      '우측 필기 화면의 세로 페이지 스크롤 레일을 제거하고 페이지 번호 이동을 페이지 창 안으로 옮겼습니다.',
+      '페이지 창을 GoodNotes처럼 2열 썸네일 그리드로 바꾸고, 사이드바를 열어도 현재 페이지가 가려지지 않도록 재배치합니다.',
+      '텍스트, 스티키 노트, 수식 객체의 글자 크기를 기준 페이지 폭으로 보정해 화면 폭에 따라 pt 크기가 달라지는 문제를 줄였습니다.'
+    ],
+    en: [
+      'Removed the right-side vertical page scroll rail and moved page-number navigation into the page panel.',
+      'Changed the page panel to a two-column thumbnail grid and reflows the editor so the current page is not covered by the sidebar.',
+      'Stabilized text, sticky-note, and math-object font sizes against the reference page width so the same pt value no longer shifts with the screen width.'
+    ],
+    ja: [
+      '右側の縦ページスクロールレールを削除し、ページ番号移動をページパネル内へ移動しました。',
+      'ページパネルを2列のサムネイルグリッドに変更し、サイドバーを開いても現在のページが隠れないように再配置します。',
+      'テキスト、付箋、数式オブジェクトの文字サイズを基準ページ幅で補正し、同じpt値が画面幅で変わる問題を軽減しました。'
+    ],
+    zh: [
+      '移除了右侧竖向页面滚动条，并将页码跳转移到页面面板中。',
+      '页面面板改为两列缩略图网格，打开侧边栏时会重新排列编辑区，避免当前页面被遮住。',
+      '文本、便签和公式对象的字号会按基准页面宽度校正，减少同一 pt 值随屏幕宽度变化的问题。'
+    ],
+    pt: [
+      'Removida a barra vertical de rolagem de páginas à direita e movida a navegação por número para o painel de páginas.',
+      'O painel de páginas agora usa miniaturas em duas colunas e reorganiza o editor para que a página atual não fique coberta pela barra lateral.',
+      'Os tamanhos de fonte de texto, notas adesivas e objetos matemáticos agora são ajustados pela largura de referência da página, reduzindo variações do mesmo valor em pt entre larguras de tela.'
+    ]
+  };
+  const UPDATE_I18N = {
+    ko: {
+      appUpdate: '앱 업데이트',
+      checkUpdate: '업데이트 확인',
+      release: '릴리즈',
+      waiting: '대기 중',
+      later: '나중에',
+      confirm: '확인',
+      close: '닫기',
+      releaseNotes: '변경 내역',
+      notesTitle: `${VERSION} 업데이트 내역`,
+      notesSummary: '이번 버전에서 바뀐 내용을 확인하세요.',
+      noNotes: '이번 버전의 변경 내역이 없습니다.',
+      newVersion: (version) => `새 버전 ${version || ''}`,
+      downloaded: '업데이트 다운로드 완료',
+      permissionRequired: '설치 권한 필요',
+      installing: '설치 화면 열림',
+      current: '최신 버전입니다',
+      error: '업데이트 확인 실패',
+      checkingSummary: 'GitHub Releases에서 최신 APK를 확인하고 있습니다.',
+      availableSummary: '다운로드 후 Android 설치 화면에서 업데이트를 완료할 수 있습니다.',
+      downloadingSummary: 'APK를 다운로드하는 중입니다. 화면을 닫아도 다운로드는 계속 진행됩니다.',
+      downloadedSummary: '다운로드가 끝났습니다. 설치를 눌러 Android 설치 화면으로 이동하세요.',
+      permissionSummary: '설정에서 이 앱의 APK 설치를 허용한 뒤 설치를 다시 누르세요.',
+      installingSummary: 'Android 설치 화면에서 업데이트를 승인하세요.',
+      currentSummary: `현재 ${VERSION} 버전을 사용 중입니다.`,
+      fallbackError: '네트워크 상태를 확인한 뒤 다시 시도하세요.',
+      installed: '설치됨',
+      apkVariant: 'Android APK',
+      downloadedProgress: (size) => `다운로드 완료 · ${size}`,
+      apkSize: (size) => `APK 크기 ${size}`,
+      download: '다운로드',
+      install: '설치',
+      retryInstall: '설치 재시도',
+      checking: '확인 중',
+      recheck: '다시 확인'
+    },
+    en: {
+      appUpdate: 'App update',
+      checkUpdate: 'Check for updates',
+      release: 'Release',
+      waiting: 'Waiting',
+      later: 'Later',
+      confirm: 'OK',
+      close: 'Close',
+      releaseNotes: 'Release notes',
+      notesTitle: `${VERSION} release notes`,
+      notesSummary: 'Review what changed in this version.',
+      noNotes: 'No release notes are available for this version.',
+      newVersion: (version) => `New version ${version || ''}`,
+      downloaded: 'Update download complete',
+      permissionRequired: 'Install permission required',
+      installing: 'Install screen opened',
+      current: 'You are up to date',
+      error: 'Update check failed',
+      checkingSummary: 'Checking GitHub Releases for the latest APK.',
+      availableSummary: 'Download the APK, then finish the update in the Android installer.',
+      downloadingSummary: 'Downloading the APK. The download continues even if you close this screen.',
+      downloadedSummary: 'Download complete. Tap Install to open the Android installer.',
+      permissionSummary: 'Allow this app to install APKs in Settings, then try installing again.',
+      installingSummary: 'Approve the update in the Android installer.',
+      currentSummary: `You are using version ${VERSION}.`,
+      fallbackError: 'Check your network connection and try again.',
+      installed: 'Installed',
+      apkVariant: 'Android APK',
+      downloadedProgress: (size) => `Download complete · ${size}`,
+      apkSize: (size) => `APK size ${size}`,
+      download: 'Download',
+      install: 'Install',
+      retryInstall: 'Retry install',
+      checking: 'Checking',
+      recheck: 'Check again'
+    },
+    ja: {
+      appUpdate: 'アプリ更新',
+      checkUpdate: '更新を確認',
+      release: 'リリース',
+      waiting: '待機中',
+      later: 'あとで',
+      confirm: '確認',
+      close: '閉じる',
+      releaseNotes: '変更内容',
+      notesTitle: `${VERSION} 変更内容`,
+      notesSummary: 'このバージョンの変更点を確認してください。',
+      noNotes: 'このバージョンの変更内容はありません。',
+      newVersion: (version) => `新しいバージョン ${version || ''}`,
+      downloaded: '更新のダウンロード完了',
+      permissionRequired: 'インストール権限が必要です',
+      installing: 'インストール画面を開きました',
+      current: '最新バージョンです',
+      error: '更新確認に失敗しました',
+      checkingSummary: 'GitHub Releasesで最新APKを確認しています。',
+      availableSummary: 'APKをダウンロード後、Androidのインストール画面で更新を完了できます。',
+      downloadingSummary: 'APKをダウンロードしています。この画面を閉じてもダウンロードは続行されます。',
+      downloadedSummary: 'ダウンロードが完了しました。インストールを押してAndroidのインストール画面へ進んでください。',
+      permissionSummary: '設定でこのアプリのAPKインストールを許可してから、もう一度インストールしてください。',
+      installingSummary: 'Androidのインストール画面で更新を承認してください。',
+      currentSummary: `現在 ${VERSION} を使用しています。`,
+      fallbackError: 'ネットワーク状態を確認してから再試行してください。',
+      installed: 'インストール済み',
+      apkVariant: 'Android APK',
+      downloadedProgress: (size) => `ダウンロード完了 · ${size}`,
+      apkSize: (size) => `APKサイズ ${size}`,
+      download: 'ダウンロード',
+      install: 'インストール',
+      retryInstall: 'インストール再試行',
+      checking: '確認中',
+      recheck: '再確認'
+    },
+    zh: {
+      appUpdate: '应用更新',
+      checkUpdate: '检查更新',
+      release: '发布',
+      waiting: '等待中',
+      later: '稍后',
+      confirm: '确定',
+      close: '关闭',
+      releaseNotes: '更新内容',
+      notesTitle: `${VERSION} 更新内容`,
+      notesSummary: '查看此版本的更改。',
+      noNotes: '此版本没有更新内容。',
+      newVersion: (version) => `新版本 ${version || ''}`,
+      downloaded: '更新下载完成',
+      permissionRequired: '需要安装权限',
+      installing: '已打开安装界面',
+      current: '已是最新版本',
+      error: '检查更新失败',
+      checkingSummary: '正在从 GitHub Releases 检查最新 APK。',
+      availableSummary: '下载后可在 Android 安装界面完成更新。',
+      downloadingSummary: '正在下载 APK。关闭此界面后下载仍会继续。',
+      downloadedSummary: '下载完成。点击安装进入 Android 安装界面。',
+      permissionSummary: '请在设置中允许此应用安装 APK，然后重试安装。',
+      installingSummary: '请在 Android 安装界面确认更新。',
+      currentSummary: `当前正在使用 ${VERSION} 版本。`,
+      fallbackError: '请检查网络状态后重试。',
+      installed: '已安装',
+      apkVariant: 'Android APK',
+      downloadedProgress: (size) => `下载完成 · ${size}`,
+      apkSize: (size) => `APK 大小 ${size}`,
+      download: '下载',
+      install: '安装',
+      retryInstall: '重试安装',
+      checking: '检查中',
+      recheck: '重新检查'
+    },
+    pt: {
+      appUpdate: 'Atualizacao do app',
+      checkUpdate: 'Verificar atualizacao',
+      release: 'Release',
+      waiting: 'Aguardando',
+      later: 'Depois',
+      confirm: 'OK',
+      close: 'Fechar',
+      releaseNotes: 'Notas da versao',
+      notesTitle: `Notas da versao ${VERSION}`,
+      notesSummary: 'Veja o que mudou nesta versao.',
+      noNotes: 'Nao ha notas para esta versao.',
+      newVersion: (version) => `Nova versao ${version || ''}`,
+      downloaded: 'Download da atualizacao concluido',
+      permissionRequired: 'Permissao de instalacao necessaria',
+      installing: 'Tela de instalacao aberta',
+      current: 'Voce esta na versao mais recente',
+      error: 'Falha ao verificar atualizacao',
+      checkingSummary: 'Verificando no GitHub Releases o APK mais recente.',
+      availableSummary: 'Baixe o APK e conclua a atualizacao no instalador do Android.',
+      downloadingSummary: 'Baixando o APK. O download continua mesmo se voce fechar esta tela.',
+      downloadedSummary: 'Download concluido. Toque em Instalar para abrir o instalador do Android.',
+      permissionSummary: 'Permita que este app instale APKs nas Configuracoes e tente instalar novamente.',
+      installingSummary: 'Aprove a atualizacao no instalador do Android.',
+      currentSummary: `Voce esta usando a versao ${VERSION}.`,
+      fallbackError: 'Verifique a conexao de rede e tente novamente.',
+      installed: 'Instalado',
+      apkVariant: 'Android APK',
+      downloadedProgress: (size) => `Download concluido · ${size}`,
+      apkSize: (size) => `Tamanho do APK ${size}`,
+      download: 'Baixar',
+      install: 'Instalar',
+      retryInstall: 'Tentar instalar novamente',
+      checking: 'Verificando',
+      recheck: 'Verificar novamente'
+    }
+  };
   const RELEASE_NOTES_LAST_VERSION_KEY = 'badnote.releaseNotes.lastVersion';
   const nativeApi = window.InkForgeNative;
   const pending = new Map();
@@ -869,10 +1073,24 @@
     pullState = null;
   }
 
-  function releaseBodyToHtml(body, fallback = RELEASE_NOTES) {
+  function currentUiLanguage() {
+    const language = api?.state?.settings?.language || document.body?.dataset?.language || 'ko';
+    return UPDATE_I18N[language] ? language : 'ko';
+  }
+
+  function updateText(key) {
+    const table = UPDATE_I18N[currentUiLanguage()] || UPDATE_I18N.ko;
+    return table[key] ?? UPDATE_I18N.ko[key] ?? key;
+  }
+
+  function releaseNotesList(language = currentUiLanguage()) {
+    return RELEASE_NOTES[language] || RELEASE_NOTES.ko;
+  }
+
+  function releaseBodyToHtml(body, fallback = releaseNotesList()) {
     const lines = String(body || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const selected = (lines.length ? lines : fallback).slice(0, 18);
-    if (!selected.length) return '<p>이번 버전의 변경 내역이 없습니다.</p>';
+    if (!selected.length) return `<p>${escapeHtml(updateText('noNotes'))}</p>`;
     const items = selected.map((line) => {
       const cleaned = line.replace(/^[-*]\s+/, '').replace(/^#{1,6}\s*/, '');
       return `<li>${escapeHtml(cleaned)}</li>`;
@@ -944,32 +1162,36 @@
     const status = updateState.status || 'idle';
     const release = updateState.release || {};
     const isNotes = status === 'release-notes';
-    const title = isNotes ? `${VERSION} 업데이트 내역` :
-      status === 'available' ? `새 버전 ${release.version || ''}` :
-      status === 'downloaded' ? '업데이트 다운로드 완료' :
-      status === 'permission-required' ? '설치 권한 필요' :
-      status === 'installing' ? '설치 화면 열림' :
-      status === 'current' ? '최신 버전입니다' :
-      status === 'error' ? '업데이트 확인 실패' : '업데이트 확인';
-    const summary = isNotes ? '이번 버전에서 바뀐 내용을 확인하세요.' :
-      status === 'checking' ? 'GitHub Releases에서 최신 APK를 확인하고 있습니다.' :
-      status === 'available' ? '다운로드 후 Android 설치 화면에서 업데이트를 완료할 수 있습니다.' :
-      status === 'downloading' ? 'APK를 다운로드하는 중입니다. 화면을 닫아도 다운로드는 계속 진행됩니다.' :
-      status === 'downloaded' ? '다운로드가 끝났습니다. 설치를 눌러 Android 설치 화면으로 이동하세요.' :
-      status === 'permission-required' ? '설정에서 이 앱의 APK 설치를 허용한 뒤 설치를 다시 누르세요.' :
-      status === 'installing' ? 'Android 설치 화면에서 업데이트를 승인하세요.' :
-      status === 'current' ? `현재 ${VERSION} 버전을 사용 중입니다.` :
-      release.message || '네트워크 상태를 확인한 뒤 다시 시도하세요.';
+    const t = UPDATE_I18N[currentUiLanguage()] || UPDATE_I18N.ko;
+    const title = isNotes ? t.notesTitle :
+      status === 'available' ? t.newVersion(release.version) :
+      status === 'downloaded' ? t.downloaded :
+      status === 'permission-required' ? t.permissionRequired :
+      status === 'installing' ? t.installing :
+      status === 'current' ? t.current :
+      status === 'error' ? t.error : t.checkUpdate;
+    const summary = isNotes ? t.notesSummary :
+      status === 'checking' ? t.checkingSummary :
+      status === 'available' ? t.availableSummary :
+      status === 'downloading' ? t.downloadingSummary :
+      status === 'downloaded' ? t.downloadedSummary :
+      status === 'permission-required' ? t.permissionSummary :
+      status === 'installing' ? t.installingSummary :
+      status === 'current' ? t.currentSummary :
+      release.message || t.fallbackError;
     sheet.dataset.status = status;
-    sheet.querySelector('#nativeUpdateEyebrow').textContent = isNotes ? '변경 내역' : 'GitHub Releases';
+    sheet.setAttribute('aria-label', t.appUpdate);
+    sheet.querySelector('[data-update-action="close"]')?.setAttribute('aria-label', t.close);
+    sheet.querySelector('#nativeUpdateEyebrow').textContent = isNotes ? t.releaseNotes : 'GitHub Releases';
     sheet.querySelector('#nativeUpdateTitle').textContent = title;
     sheet.querySelector('#nativeUpdateSummary').textContent = summary;
     sheet.querySelector('#nativeUpdateVersion').textContent = isNotes ? `bad note ${VERSION}` : `${release.currentVersion || VERSION} → ${release.version || VERSION}`;
-    sheet.querySelector('#nativeUpdateVariant').textContent = release.variant || 'Android APK';
+    sheet.querySelector('#nativeUpdateVariant').textContent = isNotes ? t.installed : (release.variant || t.apkVariant);
     const link = sheet.querySelector('#nativeUpdateReleaseLink');
     link.hidden = !release.htmlUrl || isNotes;
     link.href = release.htmlUrl || '#';
-    sheet.querySelector('#nativeUpdateNotes').innerHTML = releaseBodyToHtml(isNotes ? RELEASE_NOTES.join('\n') : release.body);
+    link.textContent = t.release;
+    sheet.querySelector('#nativeUpdateNotes').innerHTML = releaseBodyToHtml(isNotes ? releaseNotesList().join('\n') : release.body);
     const progressBlock = sheet.querySelector('#nativeUpdateProgressBlock');
     const progress = clamp(Number(updateState.progress ?? release.progress ?? 0), 0, 100);
     progressBlock.hidden = isNotes || status === 'current' || status === 'error' || status === 'checking';
@@ -979,28 +1201,29 @@
     const downloaded = release.bytesDownloaded || release.fileSize || 0;
     const total = release.totalBytes || release.assetSize || 0;
     sheet.querySelector('#nativeUpdateProgressText').textContent = status === 'downloaded'
-      ? `다운로드 완료 · ${formatBytes(release.fileSize || downloaded || total)}`
+      ? t.downloadedProgress(formatBytes(release.fileSize || downloaded || total))
       : status === 'available'
-        ? `APK 크기 ${formatBytes(total)}`
+        ? t.apkSize(formatBytes(total))
         : `${progress}% · ${formatBytes(downloaded)} / ${formatBytes(total)}`;
     const primary = sheet.querySelector('#nativeUpdatePrimary');
     const secondary = sheet.querySelector('#nativeUpdateSecondary');
+    secondary.textContent = t.later;
     secondary.hidden = isNotes || status === 'current';
     primary.disabled = status === 'checking' || status === 'downloading' || status === 'installing';
     if (isNotes) {
-      primary.textContent = '확인';
+      primary.textContent = t.confirm;
       primary.dataset.updateAction = 'ack-notes';
     } else if (status === 'available') {
-      primary.textContent = '다운로드';
+      primary.textContent = t.download;
       primary.dataset.updateAction = 'download';
     } else if (status === 'downloaded' || status === 'permission-required') {
-      primary.textContent = status === 'permission-required' ? '설치 재시도' : '설치';
+      primary.textContent = status === 'permission-required' ? t.retryInstall : t.install;
       primary.dataset.updateAction = 'install';
     } else if (status === 'current') {
-      primary.textContent = '닫기';
+      primary.textContent = t.close;
       primary.dataset.updateAction = 'close';
     } else {
-      primary.textContent = status === 'checking' ? '확인 중' : '다시 확인';
+      primary.textContent = status === 'checking' ? t.checking : t.recheck;
       primary.dataset.updateAction = 'check';
     }
   }
@@ -1081,8 +1304,8 @@
       release: {
         version: VERSION,
         releaseName: `bad note ${VERSION}`,
-        body: RELEASE_NOTES.join('\n'),
-        variant: '설치됨'
+        body: releaseNotesList().join('\n'),
+        variant: updateText('installed')
       },
       progress: 0
     };
@@ -1253,6 +1476,9 @@
     window.addEventListener('inkforge:native-stylus-key', handleNativeStylusKey);
     window.addEventListener('inkforge:native-model-status', handleModelStatus);
     window.addEventListener('inkforge:native-update', handleNativeUpdate);
+    window.addEventListener('inkforge:language-changed', () => {
+      if (updateSheet && !updateSheet.hidden) renderUpdateSheet();
+    });
 
     const stack = document.getElementById('pageStack');
     if (stack) new MutationObserver(() => scanCurrentPageSoon()).observe(stack, { childList: true });

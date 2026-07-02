@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.21';
+  const VERSION = '3.3.22';
   const PAGE_RENDER_SCALE_LIMIT = 4;
   const LEGACY_RASTER_PAGE_RENDER_SCALE_LIMIT = 2.15;
   const RASTER_PAGE_RENDER_SCALE_LIMIT = 2.55;
@@ -22,12 +22,11 @@
   const MAX_PASSIVE_PAGE_DELTA = 2;
   const LARGE_DOC_PAGE_THRESHOLD = 120;
   const SIDEBAR_WINDOW_RADIUS = 40;
-  const PAGE_SCROLL_RAIL_REVEAL_DELTA = 24;
-  const PAGE_SCROLL_RAIL_VISIBLE_MS = 1700;
   const DB_NAME = 'inkforge-notes-studio';
   const DB_VERSION = 4;
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
+  const TEXT_REFERENCE_PAGE_CSS_WIDTH = 880;
   const MAX_HISTORY = 18;
 
   const ICONS = {
@@ -225,7 +224,6 @@
       '문서 검색': 'Document search',
       '손글씨 OCR·텍스트·수식 검색': 'Search handwriting OCR, text, and formulas',
       '페이지 이동': 'Page navigation',
-      '페이지 스크롤': 'Page scroll',
       '이동할 페이지 번호': 'Page number to jump to',
       '페이지 번호로 이동': 'Go to page number',
       '펜 입력 대기': 'Waiting for pen input',
@@ -300,7 +298,7 @@
       '파일 즐겨찾기': 'Favorite file',
       '파일 즐겨찾기 해제': 'Remove file favorite',
       '라이브러리 즐겨찾기와 목록 상단에 고정합니다.': 'Pin it to favorites and the top of the library list.',
-      '오른쪽 페이지 바에서 원하는 페이지 번호를 입력합니다.': 'Enter the target page number in the right page bar.',
+      '페이지 창에서 원하는 페이지 번호를 입력합니다.': 'Enter the target page number in the page panel.',
       '손글씨 수식 계산': 'Handwritten math calculation',
       '현재 화면의 필기 수식을 한 번 인식해 결과를 표시합니다.': 'Recognize handwritten math on the current screen and show the result.',
       '편집 모드로 전환': 'Switch to edit mode',
@@ -393,7 +391,8 @@
       '라이브러리': 'ライブラリ', '올가미': '投げ縄', '펜': 'ペン', '지우개': '消しゴム', '텍스트': 'テキスト', '스티키 노트': '付箋', '이미지': '画像',
       '도구 더보기': 'ツールをさらに表示', '자': '定規', '오디오 녹음': '音声録音', '공유와 내보내기': '共有と書き出し', '닫기': '閉じる',
       '페이지': 'ページ', '목차': '目次', '오디오': '音声', '문서 검색': 'ドキュメント検索', '손글씨 OCR·텍스트·수식 검색': '手書きOCR・テキスト・数式を検索',
-      '페이지 이동': 'ページ移動', '페이지 스크롤': 'ページスクロール', '이동할 페이지 번호': '移動するページ番号', '페이지 번호로 이동': 'ページ番号へ移動',
+      '페이지 이동': 'ページ移動', '이동할 페이지 번호': '移動するページ番号', '페이지 번호로 이동': 'ページ番号へ移動',
+      '페이지 창에서 원하는 페이지 번호를 입력합니다.': 'ページパネルで移動先のページ番号を入力します。',
       '펜 입력 대기': 'ペン入力待機中', '새 노트 만들기': '新しいノートを作成', '노트 템플릿 선택': 'ノートテンプレートを選択', '노트 제목': 'ノートタイトル',
       'PDF로 새 노트': 'PDFから新規ノート', '페이지와 검색 텍스트를 가져옵니다': 'ページと検索用テキストを取り込みます', '취소': 'キャンセル', '만들기': '作成',
       '텍스트 입력': 'テキスト入力', '내용 입력': '内容を入力', '페이지에 넣을 내용을 입력하세요.': 'ページに入れる内容を入力してください。', '삽입': '挿入',
@@ -432,7 +431,8 @@
       '라이브러리': '库', '올가미': '套索', '펜': '笔', '지우개': '橡皮擦', '텍스트': '文本', '스티키 노트': '便签', '이미지': '图片',
       '도구 더보기': '更多工具', '자': '尺子', '오디오 녹음': '录音', '공유와 내보내기': '分享和导出', '닫기': '关闭',
       '페이지': '页面', '목차': '大纲', '오디오': '音频', '문서 검색': '文档搜索', '손글씨 OCR·텍스트·수식 검색': '搜索手写 OCR、文本和公式',
-      '페이지 이동': '页面导航', '페이지 스크롤': '页面滚动', '이동할 페이지 번호': '要跳转的页码', '페이지 번호로 이동': '跳转到页码',
+      '페이지 이동': '页面导航', '이동할 페이지 번호': '要跳转的页码', '페이지 번호로 이동': '跳转到页码',
+      '페이지 창에서 원하는 페이지 번호를 입력합니다.': '在页面面板中输入要跳转的页码。',
       '펜 입력 대기': '等待笔输入', '새 노트 만들기': '创建新笔记', '노트 템플릿 선택': '选择笔记模板', '노트 제목': '笔记标题',
       'PDF로 새 노트': '从 PDF 新建笔记', '페이지와 검색 텍스트를 가져옵니다': '导入页面和可搜索文本', '취소': '取消', '만들기': '创建',
       '텍스트 입력': '文本输入', '내용 입력': '输入内容', '페이지에 넣을 내용을 입력하세요.': '输入要放到页面上的内容。', '삽입': '插入',
@@ -471,7 +471,8 @@
       '라이브러리': 'Biblioteca', '올가미': 'Laço', '펜': 'Caneta', '지우개': 'Borracha', '텍스트': 'Texto', '스티키 노트': 'Nota adesiva', '이미지': 'Imagem',
       '도구 더보기': 'Mais ferramentas', '자': 'Régua', '오디오 녹음': 'Gravação de áudio', '공유와 내보내기': 'Compartilhar e exportar', '닫기': 'Fechar',
       '페이지': 'Páginas', '목차': 'Sumário', '오디오': 'Áudio', '문서 검색': 'Busca no documento', '손글씨 OCR·텍스트·수식 검색': 'Pesquisar OCR manuscrito, texto e fórmulas',
-      '페이지 이동': 'Navegação de páginas', '페이지 스크롤': 'Rolagem de página', '이동할 페이지 번호': 'Número da página', '페이지 번호로 이동': 'Ir para página',
+      '페이지 이동': 'Navegação de páginas', '이동할 페이지 번호': 'Número da página', '페이지 번호로 이동': 'Ir para página',
+      '페이지 창에서 원하는 페이지 번호를 입력합니다.': 'Digite o número da página no painel de páginas.',
       '펜 입력 대기': 'Aguardando caneta', '새 노트 만들기': 'Criar nova nota', '노트 템플릿 선택': 'Escolha um modelo', '노트 제목': 'Título da nota',
       'PDF로 새 노트': 'Nova nota de PDF', '페이지와 검색 텍스트를 가져옵니다': 'Importa páginas e texto pesquisável', '취소': 'Cancelar', '만들기': 'Criar',
       '텍스트 입력': 'Entrada de texto', '내용 입력': 'Inserir conteúdo', '페이지에 넣을 내용을 입력하세요.': 'Digite o conteúdo para inserir na página.', '삽입': 'Inserir',
@@ -607,12 +608,12 @@
     if (match) return format.objectCount(Number(match[1]), !!match[2]);
     match = text.match(/^(\d+)개 노트(?: · (\d+)개 폴더)?$/);
     if (match) return format.noteCount(Number(match[1]), Number(match[2] || 0));
-    match = text.match(/^(\d+)-(\d+)페이지는 페이지 번호 입력 또는 스크롤 바로 이동$/);
+    match = text.match(/^(\d+)-(\d+)페이지는 페이지 번호 입력으로 이동$/);
     if (match) {
-      if (lang === 'en') return `Pages ${match[1]}-${match[2]}: use the page number field or scroll bar`;
-      if (lang === 'ja') return `${match[1]}-${match[2]}ページはページ番号入力またはスクロールバーで移動`;
-      if (lang === 'zh') return `第 ${match[1]}-${match[2]} 页可用页码输入或滚动条跳转`;
-      if (lang === 'pt') return `Páginas ${match[1]}-${match[2]}: use o número da página ou a barra de rolagem`;
+      if (lang === 'en') return `Pages ${match[1]}-${match[2]}: use the page number field`;
+      if (lang === 'ja') return `${match[1]}-${match[2]}ページはページ番号入力で移動`;
+      if (lang === 'zh') return `第 ${match[1]}-${match[2]} 页可用页码输入跳转`;
+      if (lang === 'pt') return `Páginas ${match[1]}-${match[2]}: use o número da página`;
     }
     return null;
   }
@@ -1015,9 +1016,6 @@
     allowLargePageJumpUntil: 0,
     activePageWrapIndex: -1,
     virtualPageWindow: { start: -1, end: -1 },
-    pageScrollRailVisibleUntil: 0,
-    pageScrollRailHideTimer: 0,
-    pageScrollRailLastScroll: { top: 0, left: 0 },
     positionSaveTimer: 0,
     testReady: false
   };
@@ -1915,7 +1913,7 @@
       }
       ctx.restore();
     } else if (object.type === 'text') {
-      const size = object.fontSize || 28;
+      const size = textFontSizeForPage(object.fontSize, 28, pageIndex, ctx);
       ctx.fillStyle = object.color || '#202733';
       ctx.globalAlpha = object.opacity ?? 1;
       ctx.font = `${object.fontStyle || 'normal'} ${object.fontWeight || 500} ${size}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
@@ -1925,16 +1923,17 @@
       lines.forEach((line, index) => ctx.fillText(line, object.x, object.y + index * lineHeight));
     } else if (object.type === 'sticky') {
       const x = object.x || 100, y = object.y || 100, w = object.w || 310, h = object.h || 230;
+      const size = textFontSizeForPage(object.fontSize, 25, pageIndex, ctx);
       ctx.shadowColor = 'rgba(31,35,42,.2)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 7;
       ctx.fillStyle = object.color || '#ffe58d';
       if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, 10); ctx.fill(); }
       else ctx.fillRect(x, y, w, h);
       ctx.shadowColor = 'transparent';
       ctx.fillStyle = 'rgba(40,40,40,.82)';
-      ctx.font = `600 ${object.fontSize || 25}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
+      ctx.font = `600 ${size}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
       ctx.textBaseline = 'top';
       const lines = wrapText(ctx, object.text, w - 42);
-      lines.slice(0, 8).forEach((line, index) => ctx.fillText(line, x + 21, y + 22 + index * (object.fontSize || 25) * 1.38));
+      lines.slice(0, 8).forEach((line, index) => ctx.fillText(line, x + 21, y + 22 + index * size * 1.38));
       ctx.fillStyle = 'rgba(255,255,255,.28)';
       ctx.beginPath(); ctx.moveTo(x + w - 36, y + h); ctx.lineTo(x + w, y + h - 36); ctx.lineTo(x + w, y + h); ctx.closePath(); ctx.fill();
     } else if (object.type === 'sticker') {
@@ -1946,12 +1945,13 @@
       ctx.fillText(object.text || '★', x + w / 2, y + h / 2, w);
     } else if (object.type === 'math') {
       const x = object.x || 100, y = object.y || 100, w = object.w || 520, h = object.h || 92;
+      const size = textFontSizeForPage(object.fontSize, 27, pageIndex, ctx);
       ctx.fillStyle = object.background || '#edf5fc';
       ctx.strokeStyle = '#c8dceb'; ctx.lineWidth = 2;
       if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, 16); ctx.fill(); ctx.stroke(); }
       else { ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h); }
       ctx.fillStyle = object.color || '#225e9d';
-      ctx.font = `600 ${object.fontSize || 27}px ui-monospace,SFMono-Regular,Menlo,monospace`;
+      ctx.font = `600 ${size}px ui-monospace,SFMono-Regular,Menlo,monospace`;
       ctx.textBaseline = 'middle';
       const content = object.showExpression === false ? String(object.result) : `${object.expression} = ${object.result}`;
       ctx.fillText(content, x + 22, y + h / 2, w - 44);
@@ -2149,6 +2149,7 @@
     if (canvas.width !== targetWidth) canvas.width = targetWidth;
     if (canvas.height !== targetHeight) canvas.height = targetHeight;
     const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    ctx.__inkforgeTextBaseCssWidth = rect.width > 0 ? rect.width / Math.max(.08, state.zoom || 1) : TEXT_REFERENCE_PAGE_CSS_WIDTH;
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     renderPageScene(ctx, page, pageIndex);
@@ -2160,6 +2161,7 @@
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
     const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.__inkforgeTextBaseCssWidth = TEXT_REFERENCE_PAGE_CSS_WIDTH;
     ctx.setTransform(canvas.width / PAGE_WIDTH, 0, 0, canvas.height / PAGE_HEIGHT, 0, 0);
     renderPageBackground(ctx, page, pageIndex);
     for (const object of page.objects || []) renderObject(ctx, object, pageIndex);
@@ -2321,17 +2323,24 @@
     localizeSubtree(list);
   }
 
+  function sidebarReservedWidth(viewport = $('#editorViewport')) {
+    if (!state.sidebarOpen || !viewport) return 0;
+    const sidebar = $('#pageSidebar');
+    const width = sidebar?.getBoundingClientRect?.().width || 420;
+    return clamp(width, 0, Math.max(0, viewport.clientWidth - 260));
+  }
+
   function updatePageSizing({ render = true } = {}) {
     const viewport = $('#editorViewport');
     if (!viewport) return;
     const mobile = window.matchMedia('(max-width: 840px)').matches;
-    const available = Math.max(280, viewport.clientWidth - (mobile ? 20 : 104));
+    const available = Math.max(280, viewport.clientWidth - sidebarReservedWidth(viewport) - (mobile ? 20 : 104));
     const base = Math.min(880, available);
     const width = Math.round(base * state.zoom);
     const stack = $('#pageStack');
     stack.style.setProperty('--zoom', String(state.zoom));
     stack.style.setProperty('--page-width', `${width}px`);
-    stack.style.setProperty('--page-stack-width', `${Math.max(viewport.clientWidth, width + 128)}px`);
+    stack.style.setProperty('--page-stack-width', `${Math.max(viewport.clientWidth - sidebarReservedWidth(viewport), width + 128)}px`);
     $('#zoomIndicator').textContent = `${Math.round(state.zoom * 100)}%`;
     if (render) $$('.page-canvas').forEach((canvas) => scheduleRenderPage(Number(canvas.dataset.pageIndex)));
   }
@@ -2618,9 +2627,6 @@
     const largeDoc = doc.pages.length > LARGE_DOC_PAGE_THRESHOLD;
     stack.dataset.largeDoc = largeDoc ? '1' : '0';
     updatePageSizing({ render: false });
-    const viewport = $('#editorViewport');
-    state.pageScrollRailLastScroll = { top: viewport?.scrollTop || 0, left: viewport?.scrollLeft || 0 };
-    hidePageScrollRail();
     state.virtualPageWindow = { start: -1, end: -1 };
     if (largeDoc && state.pageMode !== 'single') {
       renderLargePageWindow(state.currentPageIndex, true);
@@ -2635,75 +2641,10 @@
     updatePageIndicator(); updateObjectMenu();
   }
 
-  function pageIndexFromRailEvent(event) {
+  function syncPageJumpInput(root = document) {
     const doc = currentDocument();
-    const track = $('#pageScrollTrack');
-    if (!doc || !track) return state.currentPageIndex;
-    const rect = track.getBoundingClientRect();
-    const ratio = clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
-    return Math.round(ratio * Math.max(0, doc.pages.length - 1));
-  }
-
-  function isPageScrollRailWritingBlocked() {
-    const kind = state.drawSession?.kind;
-    return !!kind && kind !== 'pan';
-  }
-
-  function setPageScrollRailVisible(visible) {
-    const rail = $('#pageScrollRail');
-    if (!rail) return;
-    rail.classList.toggle('is-visible', visible && !isPageScrollRailWritingBlocked());
-  }
-
-  function hidePageScrollRail() {
-    state.pageScrollRailVisibleUntil = 0;
-    clearTimeout(state.pageScrollRailHideTimer);
-    state.pageScrollRailHideTimer = 0;
-    setPageScrollRailVisible(false);
-  }
-
-  function revealPageScrollRail() {
-    const doc = currentDocument();
-    if (state.view !== 'editor' || !doc || doc.pages.length <= 1 || isPageScrollRailWritingBlocked()) return;
-    state.pageScrollRailVisibleUntil = performance.now() + PAGE_SCROLL_RAIL_VISIBLE_MS;
-    setPageScrollRailVisible(true);
-    clearTimeout(state.pageScrollRailHideTimer);
-    state.pageScrollRailHideTimer = setTimeout(() => {
-      if (performance.now() >= state.pageScrollRailVisibleUntil) hidePageScrollRail();
-    }, PAGE_SCROLL_RAIL_VISIBLE_MS + 40);
-  }
-
-  function canUsePageScrollRail(event) {
-    const rail = $('#pageScrollRail');
-    if (!rail || rail.hidden || !rail.classList.contains('is-visible') || shouldBlockPageScrollRailPointer(event)) return false;
-    return true;
-  }
-
-  function shouldBlockPageScrollRailPointer(event) {
-    const pointerType = effectivePointerType(event);
-    if (isStylusPointer(pointerType)) return true;
-    if (isPageScrollRailWritingBlocked()) return true;
-    if (pointerType === 'touch' && state.settings.stylusOnly && isWritingTool(state.tool)) return true;
-    return false;
-  }
-
-  function updatePageScrollRail() {
-    const doc = currentDocument();
-    const rail = $('#pageScrollRail');
-    const thumb = $('#pageScrollThumb');
-    const input = $('#pageJumpInput');
-    if (!rail || !thumb || !input || !doc) return;
-    rail.hidden = state.view !== 'editor' || doc.pages.length <= 1;
-    rail.classList.toggle('is-writing-disabled', isPageScrollRailWritingBlocked());
-    if (rail.hidden || isPageScrollRailWritingBlocked() || performance.now() >= state.pageScrollRailVisibleUntil) {
-      setPageScrollRailVisible(false);
-    }
-    const maxIndex = Math.max(1, doc.pages.length - 1);
-    const thumbHeight = clamp(100 / Math.max(1, doc.pages.length), 6, 28);
-    const progress = doc.pages.length <= 1 ? 0 : state.currentPageIndex / maxIndex;
-    thumb.style.height = `${thumbHeight}%`;
-    thumb.style.top = `${progress * (100 - thumbHeight)}%`;
-    thumb.textContent = String(state.currentPageIndex + 1);
+    const input = $('#pageJumpInput', root);
+    if (!input || !doc) return;
     input.max = String(doc.pages.length);
     if (document.activeElement !== input) input.value = String(state.currentPageIndex + 1);
   }
@@ -2726,7 +2667,7 @@
       $(`.page-wrap[data-page-index="${state.currentPageIndex}"]`)?.classList.add('is-active');
       state.activePageWrapIndex = state.currentPageIndex;
     }
-    updatePageScrollRail();
+    syncPageJumpInput();
   }
 
   function pageScrollTarget(index) {
@@ -2738,9 +2679,11 @@
     const pageTop = metrics.firstTop + metrics.step * index;
     const pageLeft = first ? first.offsetLeft : Math.max(0, (stack.scrollWidth - metrics.pageHeight * PAGE_WIDTH / PAGE_HEIGHT) / 2);
     const pageWidth = first?.offsetWidth || Math.round(PAGE_WIDTH * state.zoom);
+    const reserve = sidebarReservedWidth(viewport);
+    const visibleWidth = Math.max(1, viewport.clientWidth - reserve);
     return {
       top: clamp(pageTop + metrics.pageHeight / 2 - viewport.clientHeight / 2, 0, Math.max(0, viewport.scrollHeight - viewport.clientHeight)),
-      left: clamp(pageLeft + pageWidth / 2 - viewport.clientWidth / 2, 0, Math.max(0, viewport.scrollWidth - viewport.clientWidth))
+      left: clamp(pageLeft + pageWidth / 2 - reserve - visibleWidth / 2, 0, Math.max(0, viewport.scrollWidth - viewport.clientWidth))
     };
   }
 
@@ -2836,8 +2779,23 @@
     persistCurrent(); renderEditorPages(); renderSidebar();
   }
 
+  function applySidebarLayout() {
+    const editor = $('#editorView');
+    if (!editor) return;
+    const wasOpen = editor.classList.contains('is-sidebar-open');
+    editor.classList.toggle('is-sidebar-open', state.sidebarOpen);
+    if (wasOpen === state.sidebarOpen || state.view !== 'editor') return;
+    updatePageSizing({ render: false });
+    requestAnimationFrame(() => {
+      scrollToPage(state.currentPageIndex, false);
+      $$('.page-canvas').forEach((canvas) => scheduleRenderPage(Number(canvas.dataset.pageIndex)));
+      updateObjectMenu();
+    });
+  }
+
   function renderSidebar() {
     const sidebar = $('#pageSidebar');
+    applySidebarLayout();
     sidebar.classList.toggle('is-open', state.sidebarOpen);
     $$('.sidebar-tab').forEach((button) => button.classList.toggle('is-active', button.dataset.sidebarTab === state.sidebarTab));
     const content = $('#sidebarContent');
@@ -2849,20 +2807,42 @@
       const start = largeDoc ? Math.max(0, state.currentPageIndex - SIDEBAR_WINDOW_RADIUS) : 0;
       const end = largeDoc ? Math.min(doc.pages.length - 1, state.currentPageIndex + SIDEBAR_WINDOW_RADIUS) : doc.pages.length - 1;
       const rows = [];
-      if (largeDoc && start > 0) rows.push(`<div class="sidebar-window-note">1-${start}페이지는 페이지 번호 입력 또는 스크롤 바로 이동</div>`);
+      if (largeDoc && start > 0) rows.push(`<div class="sidebar-window-note">1-${start}페이지는 페이지 번호 입력으로 이동</div>`);
       for (let index = start; index <= end; index++) {
         const page = doc.pages[index];
-        const pageTitle = page.title ? `<strong data-i18n-skip>${escapeHtml(page.title)}</strong>` : `<strong>${formatPageNumber(index)}</strong>`;
-        rows.push(`<button class="page-thumb-item ${index === state.currentPageIndex ? 'is-active' : ''}" data-action="go-page" data-page-index="${index}"><canvas class="page-thumb-canvas" width="144" height="204"></canvas><span class="page-thumb-copy">${pageTitle}<small>${formatObjectCount(page.objects.length, page.bookmarked)}</small></span><span class="page-thumb-menu" data-action="page-menu" data-page-index="${index}">${icon('more')}</span></button>`);
+        const pageTitle = page.title ? `<span class="page-thumb-title" data-i18n-skip>${escapeHtml(page.title)}</span>` : `<span class="page-thumb-title">${index + 1}</span>`;
+        rows.push(`<div class="page-thumb-item ${index === state.currentPageIndex ? 'is-active' : ''}" data-page-index="${index}">
+          <button class="page-thumb-card" data-action="go-page" data-page-index="${index}" aria-label="${index + 1}페이지 열기">
+            <canvas class="page-thumb-canvas" width="180" height="254"></canvas>
+            <span class="page-thumb-bookmark ${page.bookmarked ? 'is-bookmarked' : ''}" aria-hidden="true">${icon('bookmark')}</span>
+          </button>
+          <div class="page-thumb-footer">${pageTitle}<button class="page-thumb-menu" data-action="page-menu" data-page-index="${index}" aria-label="페이지 메뉴">${icon('more')}</button></div>
+          <small class="page-thumb-meta">${formatObjectCount(page.objects.length, page.bookmarked)}</small>
+        </div>`);
       }
-      if (largeDoc && end < doc.pages.length - 1) rows.push(`<div class="sidebar-window-note">${end + 2}-${doc.pages.length}페이지는 페이지 번호 입력 또는 스크롤 바로 이동</div>`);
-      content.innerHTML = rows.join('') + `<button class="sidebar-add-page" data-action="add-page">${icon('page-plus')}<span>페이지 추가</span></button>`;
+      if (largeDoc && end < doc.pages.length - 1) rows.push(`<div class="sidebar-window-note">${end + 2}-${doc.pages.length}페이지는 페이지 번호 입력으로 이동</div>`);
+      content.innerHTML = `<div class="sidebar-page-tools">
+        <label class="sidebar-page-jump"><span>페이지 이동</span><input id="pageJumpInput" type="number" inputmode="numeric" min="1" max="${doc.pages.length}" value="${state.currentPageIndex + 1}" aria-label="이동할 페이지 번호" /></label>
+        <button class="page-jump-button" data-action="go-page-number" type="button" aria-label="페이지 번호로 이동">${icon('chevron-right')}</button>
+      </div><div class="page-thumb-grid">${rows.join('')}<button class="sidebar-add-page" data-action="add-page">${icon('page-plus')}<span>페이지 추가</span></button></div>`;
       const thumbRows = $$('.page-thumb-item', content);
-      const renderThumb = (row) => { const index = Number(row.dataset.pageIndex); const canvas = $('.page-thumb-canvas', row); if (!canvas || canvas.dataset.rendered) return; renderPageToCanvas(canvas, doc.pages[index], index, 72, 102); canvas.dataset.rendered = '1'; };
+      const renderThumb = (row) => {
+        const index = Number(row.dataset.pageIndex);
+        const canvas = $('.page-thumb-canvas', row);
+        if (!canvas || canvas.dataset.rendered) return;
+        const rect = canvas.getBoundingClientRect();
+        renderPageToCanvas(canvas, doc.pages[index], index, rect.width || 132, rect.height || 187);
+        canvas.dataset.rendered = '1';
+      };
       if ('IntersectionObserver' in window) {
         const observer = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { renderThumb(entry.target); observer.unobserve(entry.target); } }), { root: content, rootMargin: '260px' });
         thumbRows.forEach((row) => observer.observe(row));
       } else thumbRows.slice(0, 20).forEach(renderThumb);
+      const jumpInput = $('#pageJumpInput', content);
+      jumpInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); goToPageNumber(); }
+      });
+      jumpInput?.addEventListener('change', goToPageNumber);
     } else if (state.sidebarTab === 'outline') {
       const outlines = [];
       doc.pages.forEach((page, pageIndex) => {
@@ -3067,6 +3047,26 @@
 
   function screenToolWidthToPage(pageIndex, width) {
     return Math.max(.25, screenToPageDistance(pageIndex, Math.max(.5, Number(width) || 1)));
+  }
+
+  function textBaseCssWidth(pageIndex, ctx = null) {
+    const contextBase = Number(ctx?.__inkforgeTextBaseCssWidth);
+    if (Number.isFinite(contextBase) && contextBase > 0) return clamp(contextBase, 280, TEXT_REFERENCE_PAGE_CSS_WIDTH);
+    const canvas = Number.isFinite(pageIndex) ? $(`.page-canvas[data-page-index="${pageIndex}"]`) : null;
+    const rect = canvas?.getBoundingClientRect?.();
+    const zoom = Math.max(.08, state.zoom || 1);
+    if (rect?.width > 0) return clamp(rect.width / zoom, 280, TEXT_REFERENCE_PAGE_CSS_WIDTH);
+    const viewport = $('#editorViewport');
+    if (!viewport) return TEXT_REFERENCE_PAGE_CSS_WIDTH;
+    const mobile = window.matchMedia('(max-width: 840px)').matches;
+    const available = Math.max(280, viewport.clientWidth - sidebarReservedWidth(viewport) - (mobile ? 20 : 104));
+    return Math.min(TEXT_REFERENCE_PAGE_CSS_WIDTH, available);
+  }
+
+  function textFontSizeForPage(value, fallback, pageIndex, ctx = null) {
+    const raw = Number(value);
+    const size = Number.isFinite(raw) && raw > 0 ? raw : fallback;
+    return size * TEXT_REFERENCE_PAGE_CSS_WIDTH / Math.max(240, textBaseCssWidth(pageIndex, ctx));
   }
 
   function constrainToRuler(point) {
@@ -3914,7 +3914,6 @@
 
     const point = eventPoint(event, canvas);
     const effectiveTool = isStylusEraser(event) ? 'eraser' : (state.readOnly ? 'hand' : state.tool);
-    if (isStylusPointer(pointerType) || (effectiveTool !== 'hand' && effectiveTool !== 'text' && effectiveTool !== 'sticky' && effectiveTool !== 'math' && effectiveTool !== 'image')) hidePageScrollRail();
     if (shouldBlockNonStylusCanvasInput(pointerType, effectiveTool)) return;
     const page = currentDocument()?.pages?.[pageIndex];
     if (!page) return;
@@ -4128,7 +4127,6 @@
     else if ((session.kind === 'move-selection' && session.moved) || (session.kind === 'resize-selection' && session.resized)) persistCurrent();
     else if (session.kind === 'move-ruler') renderPageCanvas(session.pageIndex);
     state.drawSession = null;
-    updatePageScrollRail();
     renderPageCanvas(session.pageIndex);
     renderSidebar();
     updateObjectMenu();
@@ -4140,7 +4138,6 @@
       const pageIndex = state.drawSession.pageIndex;
       if (state.drawSession.holdTimer) clearTimeout(state.drawSession.holdTimer);
       state.drawSession = null;
-      updatePageScrollRail();
       renderPageCanvas(pageIndex);
     }
     finishTouchGesture();
@@ -4869,7 +4866,7 @@
     showMenu('문서 옵션', doc.title, [
       { action:'document-search', icon:'search', title:'문서 검색', description:'입력한 텍스트, 수식, 제목을 찾습니다.' },
       { action:'toggle-current-favorite', icon:'star', title:doc.favorite ? '파일 즐겨찾기 해제' : '파일 즐겨찾기', description:'라이브러리 즐겨찾기와 목록 상단에 고정합니다.' },
-      { action:'go-page-number-menu', icon:'arrow', title:'페이지 번호로 이동', description:'오른쪽 페이지 바에서 원하는 페이지 번호를 입력합니다.' },
+      { action:'go-page-number-menu', icon:'arrow', title:'페이지 번호로 이동', description:'페이지 창에서 원하는 페이지 번호를 입력합니다.' },
       { action:'calculate-page-math', icon:'math', title:'손글씨 수식 계산', description:'현재 화면의 필기 수식을 한 번 인식해 결과를 표시합니다.' },
       { action:'toggle-read-mode', icon:state.readOnly ? 'eye-off' : 'read', title:state.readOnly ? '편집 모드로 전환' : '읽기 모드', description:'실수로 필기되지 않도록 편집을 잠급니다.' },
       { action:'toggle-page-mode', icon:'sidebar', title:state.pageMode === 'continuous' ? '한 페이지 보기' : '연속 페이지 보기' },
@@ -5014,8 +5011,14 @@
       case 'go-page-number': goToPageNumber(); break;
       case 'go-page-number-menu': {
         closeModal();
-        const input = $('#pageJumpInput');
-        if (input) setTimeout(() => { input.focus(); input.select(); }, 60);
+        state.sidebarOpen = true;
+        state.sidebarTab = 'pages';
+        renderSidebar();
+        setTimeout(() => {
+          const input = $('#pageJumpInput');
+          input?.focus();
+          input?.select();
+        }, 80);
         break;
       }
       case 'calculate-page-math': closeModal(); window.__inkforge32?.processCurrentPageMath?.(); break;
@@ -5209,13 +5212,6 @@
 
   let scrollFrame = 0;
   function handleEditorScroll() {
-    const viewport = $('#editorViewport');
-    if (viewport && state.view === 'editor') {
-      const previous = state.pageScrollRailLastScroll || { top: viewport.scrollTop, left: viewport.scrollLeft };
-      const moved = Math.abs(viewport.scrollTop - previous.top) + Math.abs(viewport.scrollLeft - previous.left);
-      state.pageScrollRailLastScroll = { top: viewport.scrollTop, left: viewport.scrollLeft };
-      if (moved >= PAGE_SCROLL_RAIL_REVEAL_DELTA) revealPageScrollRail();
-    }
     if (scrollFrame || state.pageMode === 'single') return;
     scrollFrame = requestAnimationFrame(() => {
       scrollFrame = 0;
@@ -5255,46 +5251,6 @@
     $('#pageStack').addEventListener('dblclick', handleDoubleClick);
     $('#editorViewport').addEventListener('scroll', handleEditorScroll, { passive: true });
     $('#editorViewport').addEventListener('wheel', handleWheel, { passive: false });
-    const railTrack = $('#pageScrollTrack');
-    const railThumb = $('#pageScrollThumb');
-    const railInput = $('#pageJumpInput');
-    const rail = $('#pageScrollRail');
-    if (rail && railTrack && railThumb && railInput) {
-      let draggingRail = false;
-      const railMove = (event) => {
-        if (!draggingRail) return;
-        event.preventDefault();
-        scrollToPage(pageIndexFromRailEvent(event), false);
-      };
-      const railUp = () => {
-        draggingRail = false;
-        document.removeEventListener('pointermove', railMove, true);
-        document.removeEventListener('pointerup', railUp, true);
-        document.removeEventListener('pointercancel', railUp, true);
-      };
-      rail.addEventListener('pointerdown', (event) => {
-        if (!shouldBlockPageScrollRailPointer(event)) return;
-        hidePageScrollRail();
-        event.preventDefault();
-        event.stopPropagation();
-      }, { capture: true, passive: false });
-      railTrack.addEventListener('pointerdown', (event) => {
-        if (!canUsePageScrollRail(event)) return;
-        event.preventDefault();
-        draggingRail = true;
-        revealPageScrollRail();
-        scrollToPage(pageIndexFromRailEvent(event), false);
-        try { railTrack.setPointerCapture?.(event.pointerId); } catch {}
-        document.addEventListener('pointermove', railMove, true);
-        document.addEventListener('pointerup', railUp, true);
-        document.addEventListener('pointercancel', railUp, true);
-      }, { passive: false });
-      railInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') { event.preventDefault(); goToPageNumber(); }
-      });
-      railInput.addEventListener('change', goToPageNumber);
-    }
-
     $('#globalSearchInput').addEventListener('input', (event) => { state.globalQuery = event.target.value; renderLibrary(); });
     $('#documentSearchInput').addEventListener('input', renderDocumentSearch);
     $('#mathExpressionInput').addEventListener('input', (event) => {
@@ -5378,9 +5334,7 @@
       renderSidebar,
       renderDocumentSearch,
       updateObjectMenu,
-      updatePageScrollRail,
-      revealPageScrollRail,
-      hidePageScrollRail,
+      syncPageJumpInput,
       checkpoint,
       persistCurrent,
       currentDocument,
