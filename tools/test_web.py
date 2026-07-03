@@ -153,19 +153,19 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             const progressWidth = document.getElementById('nativeUpdateProgressFill')?.style.width;
             document.querySelectorAll('.modal').forEach(node => node.hidden = true);
             document.getElementById('modalBackdrop').hidden = true;
-            localStorage.removeItem('badnote.releaseNotes.seen.3.3.22');
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.23');
             localStorage.removeItem('badnote.releaseNotes.lastVersion');
             const first = bridge.showReleaseNotesOnce();
             const notesVisible = !document.getElementById('nativeUpdateSheet').hidden && document.getElementById('nativeUpdateSheet').dataset.status === 'release-notes';
             document.querySelector('[data-update-action="ack-notes"]').click();
             const second = bridge.showReleaseNotesOnce();
-            localStorage.removeItem('badnote.releaseNotes.seen.3.3.22');
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.23');
             localStorage.removeItem('badnote.releaseNotes.lastVersion');
             window.__inkforge.state.settings.language = 'en';
             window.__inkforge.refreshLocalizedUi();
             const englishFirst = bridge.showReleaseNotesOnce();
             const englishText = document.getElementById('nativeUpdateSheet')?.textContent || '';
-            const englishNotesVisible = englishFirst && englishText.includes('3.3.22 release notes') && englishText.includes('Removed the right-side vertical page scroll rail');
+            const englishNotesVisible = englishFirst && englishText.includes('3.3.23 release notes') && englishText.includes('Moved the S Pen button eraser notice');
             document.querySelector('[data-update-action="ack-notes"]').click();
             window.__inkforge.state.settings.language = 'ko';
             window.__inkforge.refreshLocalizedUi();
@@ -226,6 +226,35 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             document.querySelectorAll('.modal').forEach(node => node.hidden = true);
             document.getElementById('modalBackdrop').hidden = true;
             return { seen, passed: Object.values(seen).every(item => item.passed) && api.state.settings.language === 'ko' };
+          }
+        """)
+        results["hud_text_opacity_setting"] = await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            document.querySelector('[data-action="open-settings"]').click();
+            await delay(80);
+            const range = document.getElementById('hudTextOpacityRange');
+            const output = document.getElementById('hudTextOpacityOutput');
+            if (!range || !output) return { passed: false, reason: 'missing opacity control' };
+            range.value = '55';
+            range.dispatchEvent(new Event('input', { bubbles: true }));
+            range.dispatchEvent(new Event('change', { bubbles: true }));
+            await delay(120);
+            const stored = await api.storage.getSetting('preferences', {});
+            const cssValue = getComputedStyle(document.documentElement).getPropertyValue('--hud-text-opacity').trim();
+            document.querySelectorAll('.modal').forEach(node => node.hidden = true);
+            document.getElementById('modalBackdrop').hidden = true;
+            return {
+              stateValue: api.state.settings.hudTextOpacity,
+              storedValue: stored.hudTextOpacity,
+              cssValue,
+              output: output.textContent,
+              passed: Math.abs(api.state.settings.hudTextOpacity - .55) < .001 &&
+                Math.abs(stored.hudTextOpacity - .55) < .001 &&
+                cssValue === '0.55' &&
+                output.textContent === '55%'
+            };
           }
         """)
         results["folder_creation"] = await page.evaluate("""
@@ -360,23 +389,35 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
               await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
               const object = page.objects[page.objects.length - 1];
               const nextRect = document.querySelector(`.page-canvas[data-page-index="${api.state.currentPageIndex}"]`).getBoundingClientRect();
-              return { width: object.width, screenWidth: object.width * nextRect.width / 1000, storedScreenWidth: object.screenWidth, rectWidth: nextRect.width };
+              return {
+                id: object.id,
+                width: object.width,
+                storedPageScreenWidth: object.width * nextRect.width / 1000,
+                renderedScreenWidth: api.objectPageWidth(object, api.state.currentPageIndex) * nextRect.width / 1000,
+                storedScreenWidth: object.screenWidth,
+                rectWidth: nextRect.width
+              };
             };
             const first = await drawStroke(7711, 230);
             const anchorCanvas = document.querySelector(`.page-canvas[data-page-index="${api.state.currentPageIndex}"]`);
             const anchorRect = anchorCanvas.getBoundingClientRect();
             api.setZoom(3, { clientX: anchorRect.left + anchorRect.width / 2, clientY: anchorRect.top + anchorRect.height / 2 });
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const zoomedRect = document.querySelector(`.page-canvas[data-page-index="${api.state.currentPageIndex}"]`).getBoundingClientRect();
+            const firstObject = page.objects.find(object => object.id === first.id);
+            const firstAfterZoomScreenWidth = api.objectPageWidth(firstObject, api.state.currentPageIndex) * zoomedRect.width / 1000;
             const second = await drawStroke(7712, 280);
             return {
               stateWidth: api.state.width,
               labelText,
               first,
+              firstAfterZoomScreenWidth,
               second,
               passed: Math.abs(api.state.width - 12) < .01 &&
                 labelText.includes('12') &&
-                Math.abs(first.screenWidth - 12) < 1.4 &&
-                Math.abs(second.screenWidth - 12) < 1.4 &&
+                Math.abs(first.renderedScreenWidth - 12) < 1.4 &&
+                Math.abs(firstAfterZoomScreenWidth - 12) < 1.4 &&
+                Math.abs(second.renderedScreenWidth - 12) < 1.4 &&
                 second.width < first.width * .55 &&
                 first.storedScreenWidth === 12 &&
                 second.storedScreenWidth === 12
@@ -832,7 +873,67 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         await page.evaluate("window.__inkforge.state.searchOpen=true; document.getElementById('documentSearchInput').value='OCR'; window.__inkforge.renderDocumentSearch()")
         search_matches = await page.locator("#documentSearchResults .search-result").count()
         results["ocr_search_index"] = {"matches": search_matches, "passed": search_matches > 0}
-        await page.evaluate("document.querySelectorAll('.modal').forEach(node=>node.hidden=true); document.getElementById('modalBackdrop').hidden=true")
+        results["document_search_spen_eraser_guard"] = await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            api.openDocumentSearch();
+            await delay(120);
+            api.closeDocumentSearch();
+            await delay(120);
+            window.dispatchEvent(new CustomEvent('inkforge:native-stylus', { detail: {
+              action: 2,
+              hover: true,
+              toolType: 2,
+              buttonState: 32,
+              rawButtonState: 32,
+              primaryButton: true,
+              barrelButton: true,
+              x: 80,
+              y: 120,
+              pressure: 0,
+              device: 'Samsung S Pen'
+            }}));
+            await delay(120);
+            const drawer = document.getElementById('documentSearch');
+            const input = document.getElementById('documentSearchInput');
+            const chip = document.getElementById('nativeStylusChip');
+            const chipRect = chip?.getBoundingClientRect();
+            const chipLabel = chip?.querySelector('.stylus-label')?.textContent || '';
+            const chipVisibleBeforeRelease = chip?.classList.contains('is-visible') === true;
+            const chipTopLeft = !!chipRect && chipRect.left < 40 && chipRect.top < 180;
+            window.dispatchEvent(new CustomEvent('inkforge:native-stylus', { detail: {
+              action: 12,
+              hover: true,
+              toolType: 2,
+              buttonState: 0,
+              rawButtonState: 0,
+              x: 80,
+              y: 120,
+              pressure: 0,
+              device: 'Samsung S Pen'
+            }}));
+            await delay(260);
+            const chipHiddenAfterRelease = chip?.classList.contains('is-visible') === false;
+            return {
+              searchOpen: api.state.searchOpen,
+              drawerOpen: drawer?.classList.contains('is-open') === true,
+              activeIsSearchInput: document.activeElement === input,
+              chipLabel,
+              chipVisibleBeforeRelease,
+              chipTopLeft,
+              chipHiddenAfterRelease,
+              passed: api.state.searchOpen === false &&
+                drawer?.classList.contains('is-open') === false &&
+                document.activeElement !== input &&
+                chipLabel.includes('S Pen 버튼: 지우개') &&
+                chipVisibleBeforeRelease &&
+                chipTopLeft &&
+                chipHiddenAfterRelease
+            };
+          }
+        """)
+        await page.evaluate("window.__inkforge.closeDocumentSearch(); document.querySelectorAll('.modal').forEach(node=>node.hidden=true); document.getElementById('modalBackdrop').hidden=true")
 
         # Color mixer: visual palette only, no prompt/dialog.
         await page.evaluate("window.__inkforge.setTool('pen')")
@@ -1528,7 +1629,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
     results["dialogs"] = dialogs
     results["console_errors"] = errors
-    required_scalars = results.get("version") == "3.3.22" and results.get("upgrade_version") == "3.3.22" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
+    required_scalars = results.get("version") == "3.3.23" and results.get("upgrade_version") == "3.3.23" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
     results["passed"] = required_scalars and not errors and not dialogs and all(value.get("passed", True) if isinstance(value, dict) else True for key, value in results.items() if key not in {"console_errors", "dialogs"})
     return results
 

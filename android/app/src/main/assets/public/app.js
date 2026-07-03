@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.22';
+  const VERSION = '3.3.23';
   const PAGE_RENDER_SCALE_LIMIT = 4;
   const LEGACY_RASTER_PAGE_RENDER_SCALE_LIMIT = 2.15;
   const RASTER_PAGE_RENDER_SCALE_LIMIT = 2.55;
@@ -253,6 +253,8 @@
       '직선을 그린 뒤 잠시 유지하면 정돈된 도형으로 변환합니다.': 'Hold after drawing to convert rough strokes into clean shapes.',
       '스타일러스 정보 표시': 'Show stylus info',
       '필압, 기울기, 입력 장치를 화면에 표시합니다.': 'Show pressure, tilt, and input device on screen.',
+      'HUD 텍스트 투명도': 'HUD text opacity',
+      'S Pen 지우개와 상태 표시 글자의 투명도를 조절합니다.': 'Adjust the text opacity for S Pen eraser and status HUD labels.',
       '연속 페이지 보기': 'Continuous pages',
       '모든 페이지를 세로로 이어서 표시합니다.': 'Show all pages in one vertical flow.',
       '새 폴더': 'New folder',
@@ -401,6 +403,7 @@
       '낙서해서 지우기': 'なぞって消去', '빠른 지그재그 획으로 겹친 필기를 지웁니다.': '素早いジグザグ線で重なった筆跡を消します。',
       '그려서 도형 만들기': '描いて図形化', '직선을 그린 뒤 잠시 유지하면 정돈된 도형으로 변환합니다.': '描いた後に少し保持すると整った図形に変換します。',
       '스타일러스 정보 표시': 'スタイラス情報を表示', '필압, 기울기, 입력 장치를 화면에 표시합니다.': '筆圧、傾き、入力デバイスを表示します。',
+      'HUD 텍스트 투명도': 'HUDテキストの透明度', 'S Pen 지우개와 상태 표시 글자의 투명도를 조절합니다.': 'S Pen消しゴムと状態表示HUDの文字透明度を調整します。',
       '연속 페이지 보기': '連続ページ表示', '모든 페이지를 세로로 이어서 표시합니다.': 'すべてのページを縦につなげて表示します。',
       '새 폴더': '新しいフォルダ', '노트 묶음 만들기': 'ノートグループを作成', '이 폴더 안에 만들기': 'このフォルダ内に作成',
       '열기': '開く', '문서 메뉴': 'ドキュメントメニュー', '복원': '復元', '영구 삭제': '完全に削除', '이름 변경': '名前を変更',
@@ -441,6 +444,7 @@
       '낙서해서 지우기': '涂画擦除', '빠른 지그재그 획으로 겹친 필기를 지웁니다.': '用快速之字形笔画擦除相交的手写内容。',
       '그려서 도형 만들기': '绘制并保持生成图形', '직선을 그린 뒤 잠시 유지하면 정돈된 도형으로 변환합니다.': '绘制后稍作停留即可转换为规整图形。',
       '스타일러스 정보 표시': '显示手写笔信息', '필압, 기울기, 입력 장치를 화면에 표시합니다.': '显示压感、倾斜和输入设备。',
+      'HUD 텍스트 투명도': 'HUD 文字透明度', 'S Pen 지우개와 상태 표시 글자의 투명도를 조절합니다.': '调整 S Pen 橡皮和状态 HUD 标签的文字透明度。',
       '연속 페이지 보기': '连续页面', '모든 페이지를 세로로 이어서 표시합니다.': '纵向连续显示所有页面。',
       '새 폴더': '新文件夹', '노트 묶음 만들기': '创建笔记组', '이 폴더 안에 만들기': '在此文件夹中创建',
       '열기': '打开', '문서 메뉴': '文档菜单', '복원': '恢复', '영구 삭제': '永久删除', '이름 변경': '重命名',
@@ -481,6 +485,7 @@
       '낙서해서 지우기': 'Rabiscar para apagar', '빠른 지그재그 획으로 겹친 필기를 지웁니다.': 'Apaga traços tocados por zigue-zagues rápidos.',
       '그려서 도형 만들기': 'Desenhar e segurar para formas', '직선을 그린 뒤 잠시 유지하면 정돈된 도형으로 변환합니다.': 'Segure após desenhar para converter em formas limpas.',
       '스타일러스 정보 표시': 'Mostrar dados da stylus', '필압, 기울기, 입력 장치를 화면에 표시합니다.': 'Mostra pressão, inclinação e dispositivo de entrada.',
+      'HUD 텍스트 투명도': 'Opacidade do texto HUD', 'S Pen 지우개와 상태 표시 글자의 투명도를 조절합니다.': 'Ajusta a opacidade do texto da borracha da S Pen e dos avisos de status.',
       '연속 페이지 보기': 'Páginas contínuas', '모든 페이지를 세로로 이어서 표시합니다.': 'Mostra todas as páginas em fluxo vertical.',
       '새 폴더': 'Nova pasta', '노트 묶음 만들기': 'Criar grupo de notas', '이 폴더 안에 만들기': 'Criar nesta pasta',
       '열기': 'Abrir', '문서 메뉴': 'Menu do documento', '복원': 'Restaurar', '영구 삭제': 'Excluir permanentemente', '이름 변경': 'Renomear',
@@ -694,6 +699,7 @@
     );
     const effectiveMaxAge = barrelActive ? Math.max(maxAge, 3500) : maxAge;
     if (performance.now() - detail.receivedAt > effectiveMaxAge) return null;
+    if (event && barrelActive && Number.isFinite(Number(detail.pointerId)) && Number(event.pointerId) === Number(detail.pointerId)) return detail;
     if (event && Number.isFinite(detail.x) && Number.isFinite(detail.y)) {
       const dx = Math.abs(Number(event.clientX || 0) - detail.x);
       const dy = Math.abs(Number(event.clientY || 0) - detail.y);
@@ -977,6 +983,7 @@
     sidebarOpen: false,
     sidebarTab: 'pages',
     searchOpen: false,
+    documentSearchFocusTimer: 0,
     readOnly: false,
     ruler: { visible: false, x: PAGE_WIDTH / 2, angle: 0, y: 500 },
     selection: null,
@@ -993,6 +1000,7 @@
       sPenGestures: true,
       autoOcr: true,
       nativeRecognition: true,
+      hudTextOpacity: 1,
       language: 'ko'
     },
     penSettings: deepClone(BRUSH_META),
@@ -1019,6 +1027,22 @@
     positionSaveTimer: 0,
     testReady: false
   };
+
+  function normalizedHudTextOpacity() {
+    const value = Number(state.settings.hudTextOpacity);
+    return clamp(Number.isFinite(value) ? value : 1, .35, 1);
+  }
+
+  function applyHudTextOpacity() {
+    const value = normalizedHudTextOpacity();
+    state.settings.hudTextOpacity = value;
+    document.documentElement.style.setProperty('--hud-text-opacity', value.toFixed(2));
+    const range = $('#hudTextOpacityRange');
+    const output = $('#hudTextOpacityOutput');
+    const percent = Math.round(value * 100);
+    if (range) range.value = String(percent);
+    if (output) output.textContent = `${percent}%`;
+  }
 
   function applyLanguage(root = document.body) {
     const meta = LANGUAGE_META[currentLanguage()] || LANGUAGE_META.ko;
@@ -1675,31 +1699,40 @@
     ctx.restore();
   }
 
-  function renderStroke(ctx, stroke) {
+  function renderWidthForObject(object, pageIndex, ctx = null) {
+    const screenWidth = Number(object?.screenWidth);
+    if (Number.isFinite(screenWidth) && screenWidth > 0) return screenToolWidthToPage(pageIndex, screenWidth, ctx);
+    return Math.max(.25, Number(object?.width) || 4);
+  }
+
+  function renderStroke(ctx, stroke, pageIndex = state.currentPageIndex) {
     if (!stroke?.points?.length) return;
-    const settings = state.penSettings[stroke.brush] || BRUSH_META[stroke.brush] || BRUSH_META.fountain;
-    const points = smoothPoints(stroke.points, settings.smoothing ?? .3);
-    if (stroke.brush === 'pencil') {
-      renderPencil(ctx, stroke, points);
+    const renderStrokeObject = Number.isFinite(Number(stroke.screenWidth)) && Number(stroke.screenWidth) > 0
+      ? { ...stroke, width: renderWidthForObject(stroke, pageIndex, ctx) }
+      : stroke;
+    const settings = state.penSettings[renderStrokeObject.brush] || BRUSH_META[renderStrokeObject.brush] || BRUSH_META.fountain;
+    const points = smoothPoints(renderStrokeObject.points, settings.smoothing ?? .3);
+    if (renderStrokeObject.brush === 'pencil') {
+      renderPencil(ctx, renderStrokeObject, points);
       return;
     }
-    if (stroke.brush === 'highlighter') {
+    if (renderStrokeObject.brush === 'highlighter') {
       ctx.save();
       ctx.globalCompositeOperation = 'multiply';
-      strokePathSegments(ctx, points, stroke, { opacity: stroke.opacity ?? .28, lineCap: 'butt' });
+      strokePathSegments(ctx, points, renderStrokeObject, { opacity: renderStrokeObject.opacity ?? .28, lineCap: 'butt' });
       ctx.restore();
       return;
     }
-    if (stroke.brush === 'gel') {
-      strokePathSegments(ctx, points, stroke, { opacity: stroke.opacity ?? .98, widthScale: 1.12 });
-      strokePathSegments(ctx, points, stroke, { opacity: .38, color: '#ffffff', widthScale: .28 });
+    if (renderStrokeObject.brush === 'gel') {
+      strokePathSegments(ctx, points, renderStrokeObject, { opacity: renderStrokeObject.opacity ?? .98, widthScale: 1.12 });
+      strokePathSegments(ctx, points, renderStrokeObject, { opacity: .38, color: '#ffffff', widthScale: .28 });
       return;
     }
-    if (stroke.brush === 'fineliner') {
-      strokePathSegments(ctx, points, stroke, { opacity: stroke.opacity ?? .98, lineCap: 'round' });
+    if (renderStrokeObject.brush === 'fineliner') {
+      strokePathSegments(ctx, points, renderStrokeObject, { opacity: renderStrokeObject.opacity ?? .98, lineCap: 'round' });
       return;
     }
-    strokePathSegments(ctx, points, stroke, { opacity: stroke.opacity ?? settings.opacity ?? 1 });
+    strokePathSegments(ctx, points, renderStrokeObject, { opacity: renderStrokeObject.opacity ?? settings.opacity ?? 1 });
   }
 
   function drawArrowHead(ctx, x1, y1, x2, y2, size) {
@@ -1734,7 +1767,7 @@
     ctx.closePath();
   }
 
-  function renderShape(ctx, object) {
+  function renderShape(ctx, object, pageIndex = state.currentPageIndex) {
     const x = Math.min(object.x1, object.x2), y = Math.min(object.y1, object.y2);
     const w = Math.max(1, Math.abs(object.x2 - object.x1)), h = Math.max(1, Math.abs(object.y2 - object.y1));
     const cx = x + w / 2, cy = y + h / 2;
@@ -1742,19 +1775,20 @@
     ctx.strokeStyle = object.color || '#1f2937';
     ctx.fillStyle = object.fill || 'transparent';
     ctx.globalAlpha = object.opacity ?? 1;
-    ctx.lineWidth = object.width || 4;
+    const lineWidth = renderWidthForObject(object, pageIndex, ctx);
+    ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
     switch (object.shape) {
       case 'arrow':
         ctx.moveTo(object.x1, object.y1); ctx.lineTo(object.x2, object.y2); ctx.stroke();
-        drawArrowHead(ctx, object.x1, object.y1, object.x2, object.y2, Math.max(12, (object.width || 4) * 4));
+        drawArrowHead(ctx, object.x1, object.y1, object.x2, object.y2, Math.max(12, lineWidth * 4));
         ctx.restore(); return;
       case 'double-arrow':
         ctx.moveTo(object.x1, object.y1); ctx.lineTo(object.x2, object.y2); ctx.stroke();
-        drawArrowHead(ctx, object.x1, object.y1, object.x2, object.y2, Math.max(12, (object.width || 4) * 4));
-        drawArrowHead(ctx, object.x2, object.y2, object.x1, object.y1, Math.max(12, (object.width || 4) * 4));
+        drawArrowHead(ctx, object.x1, object.y1, object.x2, object.y2, Math.max(12, lineWidth * 4));
+        drawArrowHead(ctx, object.x2, object.y2, object.x1, object.y1, Math.max(12, lineWidth * 4));
         ctx.restore(); return;
       case 'rectangle':
       case 'square':
@@ -1889,8 +1923,8 @@
       ctx.rotate(object.rotation);
       ctx.translate(-(b.x + b.w / 2), -(b.y + b.h / 2));
     }
-    if (object.type === 'stroke') renderStroke(ctx, object);
-    else if (object.type === 'shape') renderShape(ctx, object);
+    if (object.type === 'stroke') renderStroke(ctx, object, pageIndex);
+    else if (object.type === 'shape') renderShape(ctx, object, pageIndex);
     else if (object.type === 'tape') {
       const b = computeBounds(object);
       ctx.save();
@@ -2007,8 +2041,8 @@
   function renderTransient(ctx, pageIndex) {
     const session = state.drawSession;
     if (!session || session.pageIndex !== pageIndex) return;
-    if (session.kind === 'stroke') renderStroke(ctx, session.object);
-    else if (session.kind === 'shape' || session.kind === 'shape-adjust') renderShape(ctx, session.object);
+    if (session.kind === 'stroke') renderStroke(ctx, session.object, pageIndex);
+    else if (session.kind === 'shape' || session.kind === 'shape-adjust') renderShape(ctx, session.object, pageIndex);
     else if (session.kind === 'lasso') {
       ctx.save(); ctx.strokeStyle = '#1397ed'; ctx.fillStyle = 'rgba(19,151,237,.08)'; ctx.lineWidth = 2; ctx.setLineDash([7, 5]);
       ctx.beginPath();
@@ -2150,6 +2184,7 @@
     if (canvas.height !== targetHeight) canvas.height = targetHeight;
     const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
     ctx.__inkforgeTextBaseCssWidth = rect.width > 0 ? rect.width / Math.max(.08, state.zoom || 1) : TEXT_REFERENCE_PAGE_CSS_WIDTH;
+    ctx.__inkforgePageCssWidth = rect.width > 0 ? rect.width : Math.max(1, PAGE_WIDTH * state.zoom);
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     renderPageScene(ctx, page, pageIndex);
@@ -2162,6 +2197,7 @@
     canvas.height = Math.max(1, Math.round(height * dpr));
     const ctx = canvas.getContext('2d', { alpha: false });
     ctx.__inkforgeTextBaseCssWidth = TEXT_REFERENCE_PAGE_CSS_WIDTH;
+    ctx.__inkforgePageCssWidth = TEXT_REFERENCE_PAGE_CSS_WIDTH;
     ctx.setTransform(canvas.width / PAGE_WIDTH, 0, 0, canvas.height / PAGE_HEIGHT, 0, 0);
     renderPageBackground(ctx, page, pageIndex);
     for (const object of page.objects || []) renderObject(ctx, object, pageIndex);
@@ -2961,6 +2997,25 @@
     localizeSubtree(results);
   }
 
+  function openDocumentSearch() {
+    closeModal();
+    clearTimeout(state.documentSearchFocusTimer);
+    state.searchOpen = true;
+    renderDocumentSearch();
+    state.documentSearchFocusTimer = setTimeout(() => {
+      if (state.searchOpen) $('#documentSearchInput')?.focus();
+    }, 80);
+  }
+
+  function closeDocumentSearch() {
+    clearTimeout(state.documentSearchFocusTimer);
+    state.documentSearchFocusTimer = 0;
+    state.searchOpen = false;
+    const input = $('#documentSearchInput');
+    if (document.activeElement === input) input.blur();
+    renderDocumentSearch();
+  }
+
   function highlightText(text, query) {
     const safe = escapeHtml(text);
     if (!query) return safe;
@@ -3038,15 +3093,27 @@
     };
   }
 
-  function screenToPageDistance(pageIndex, pixels) {
+  function pageCssWidthForDistance(pageIndex, ctx = null) {
+    const contextWidth = Number(ctx?.__inkforgePageCssWidth);
+    if (Number.isFinite(contextWidth) && contextWidth > 0) return contextWidth;
     const canvas = $(`.page-canvas[data-page-index="${pageIndex}"]`);
     const rect = canvas?.getBoundingClientRect();
-    if (rect?.width > 0) return pixels / rect.width * PAGE_WIDTH;
+    if (rect?.width > 0) return rect.width;
+    return PAGE_WIDTH * Math.max(.1, state.zoom || 1);
+  }
+
+  function screenToPageDistance(pageIndex, pixels, ctx = null) {
+    const cssWidth = pageCssWidthForDistance(pageIndex, ctx);
+    if (cssWidth > 0) return pixels / cssWidth * PAGE_WIDTH;
     return pixels / Math.max(.1, state.zoom || 1);
   }
 
-  function screenToolWidthToPage(pageIndex, width) {
-    return Math.max(.25, screenToPageDistance(pageIndex, Math.max(.5, Number(width) || 1)));
+  function screenToolWidthToPage(pageIndex, width, ctx = null) {
+    return Math.max(.25, screenToPageDistance(pageIndex, Math.max(.5, Number(width) || 1), ctx));
+  }
+
+  function objectPageWidth(object, pageIndex = state.currentPageIndex, ctx = null) {
+    return renderWidthForObject(object, pageIndex, ctx);
   }
 
   function textBaseCssWidth(pageIndex, ctx = null) {
@@ -3210,9 +3277,9 @@
     return null;
   }
 
-  function shapeIntersectsPoint(object, point, radius) {
+  function shapeIntersectsPoint(object, point, radius, pageIndex = state.currentPageIndex) {
     const bounds = computeBounds(object);
-    const tolerance = radius + (object.width || 4) * 1.25;
+    const tolerance = radius + objectPageWidth(object, pageIndex) * 1.25;
     const filled = object.fill && object.fill !== 'transparent';
     if (filled && point.x >= bounds.x && point.x <= bounds.x + bounds.w && point.y >= bounds.y && point.y <= bounds.y + bounds.h) return true;
     if (['line', 'arrow', 'double-arrow', 'curve'].includes(object.shape)) {
@@ -3248,26 +3315,27 @@
     else { object.x += dx; object.y += dy; }
   }
 
-  function objectsIntersectingPoint(page, point, radius) {
+  function objectsIntersectingPoint(page, point, radius, pageIndex = state.currentPageIndex) {
     const candidates = [];
     for (const object of page.objects) {
       if (object.locked) continue;
       const bounds = computeBounds(object);
       if (point.x + radius < bounds.x || point.x - radius > bounds.x + bounds.w || point.y + radius < bounds.y || point.y - radius > bounds.y + bounds.h) continue;
       if (object.type === 'stroke') {
-        if (object.points.some((sample) => distance(sample, point) <= radius + (object.width || 4))) candidates.push(object);
+        if (object.points.some((sample) => distance(sample, point) <= radius + objectPageWidth(object, pageIndex))) candidates.push(object);
       } else if (object.type === 'shape') {
-        if (shapeIntersectsPoint(object, point, radius)) candidates.push(object);
+        if (shapeIntersectsPoint(object, point, radius, pageIndex)) candidates.push(object);
       } else candidates.push(object);
     }
     return candidates;
   }
 
-  function splitStrokeByEraser(stroke, point, radius) {
+  function splitStrokeByEraser(stroke, point, radius, pageIndex = state.currentPageIndex) {
     const runs = [];
+    const strokeWidth = objectPageWidth(stroke, pageIndex);
     let run = [];
     for (const sample of stroke.points) {
-      if (distance(sample, point) > radius + (stroke.width || 4) * .45) run.push(sample);
+      if (distance(sample, point) > radius + strokeWidth * .45) run.push(sample);
       else if (run.length) { if (run.length > 1) runs.push(run); run = []; }
     }
     if (run.length > 1) runs.push(run);
@@ -3283,7 +3351,7 @@
       return true;
     }
     const radius = Number.isFinite(overrideRadius) ? overrideRadius : screenToolWidthToPage(pageIndex, state.eraserRadius);
-    const candidates = objectsIntersectingPoint(page, point, radius);
+    const candidates = objectsIntersectingPoint(page, point, radius, pageIndex);
     if (!candidates.length) return false;
     if (state.eraserMode === 'stroke') {
       const ids = new Set(candidates.map((item) => item.id));
@@ -3293,7 +3361,7 @@
       const next = [];
       for (const object of page.objects) {
         if (!candidateIds.has(object.id)) next.push(object);
-        else if (object.type === 'stroke') next.push(...splitStrokeByEraser(object, point, radius));
+        else if (object.type === 'stroke') next.push(...splitStrokeByEraser(object, point, radius, pageIndex));
       }
       page.objects = next;
     }
@@ -3445,14 +3513,14 @@
     return clamp(screenToPageDistance(pageIndex, screenRadius), 2.2, 9);
   }
 
-  function objectIntersectsScribble(object, points, expanded, hitRadius) {
+  function objectIntersectsScribble(object, points, expanded, hitRadius, pageIndex = state.currentPageIndex) {
     const bounds = computeBounds(object);
     const overlapsBox = bounds.x < expanded.x + expanded.w && bounds.x + bounds.w > expanded.x && bounds.y < expanded.y + expanded.h && bounds.y + bounds.h > expanded.y;
     if (!overlapsBox) return false;
     if (object.type === 'stroke') {
-      return pathNearPath(object.points || [], points, hitRadius + (object.width || 4) * .28);
+      return pathNearPath(object.points || [], points, hitRadius + objectPageWidth(object, pageIndex) * .28);
     }
-    if (object.type === 'shape') return points.some((point) => shapeIntersectsPoint(object, point, hitRadius));
+    if (object.type === 'shape') return points.some((point) => shapeIntersectsPoint(object, point, hitRadius, pageIndex));
     return points.some((point) => point.x >= bounds.x - hitRadius && point.x <= bounds.x + bounds.w + hitRadius && point.y >= bounds.y - hitRadius && point.y <= bounds.y + bounds.h + hitRadius);
   }
 
@@ -3466,7 +3534,7 @@
     const hitRadius = scribbleEraseHitRadius(pageIndex, gesture);
     const margin = hitRadius + Math.max(2, screenToPageDistance(pageIndex, 3));
     const expanded = { x: metrics.bounds.x - margin, y: metrics.bounds.y - margin, w: metrics.bounds.w + margin * 2, h: metrics.bounds.h + margin * 2 };
-    const ids = page.objects.filter((object) => objectIntersectsScribble(object, points, expanded, hitRadius)).map((object) => object.id);
+    const ids = page.objects.filter((object) => objectIntersectsScribble(object, points, expanded, hitRadius, pageIndex)).map((object) => object.id);
     if (!ids.length) return false;
     checkpoint('scribble-erase');
     page.objects = page.objects.filter((object) => !ids.includes(object.id));
@@ -3742,7 +3810,7 @@
     const holdDuration = performance.now() - (session.lastMovedAt || session.startedAt);
     const shape = maybeShapeFromStroke(points, duration, Math.max(holdDuration, LIVE_SHAPE_HOLD_MS), screenPoints);
     if (!shape) return false;
-    const object = { id: uid('shape'), type: 'shape', ...shape, color: session.object.color, width: session.object.width, createdAt: now() };
+    const object = { id: uid('shape'), type: 'shape', ...shape, color: session.object.color, width: session.object.width, screenWidth: session.object.screenWidth, createdAt: now() };
     const bounds = computeBounds(object);
     const last = points[points.length - 1] || { x: object.x2, y: object.y2 };
     session.kind = 'shape-adjust';
@@ -3873,6 +3941,38 @@
     state.drawSession = nextSession;
     scheduleRenderPage(session.pageIndex);
     return nextSession;
+  }
+
+  function applyStylusButtonEraser(detail = {}) {
+    if (!state.settings.sPenGestures) return false;
+    const session = state.drawSession;
+    if (!session || !['stroke','eraser'].includes(session.kind)) return false;
+    const nativePointerId = Number(detail.pointerId);
+    if (Number.isFinite(nativePointerId) && session.pointerId !== nativePointerId) return false;
+    const canvas = $(`.page-canvas[data-page-index="${session.pageIndex}"]`);
+    if (!canvas) return false;
+    const pointer = state.activePointers.get(session.pointerId);
+    const eventLike = {
+      clientX: Number.isFinite(pointer?.clientX) ? pointer.clientX : Number(detail.x),
+      clientY: Number.isFinite(pointer?.clientY) ? pointer.clientY : Number(detail.y),
+      pressure: Number.isFinite(Number(detail.pressure)) ? Number(detail.pressure) : .55,
+      tiltX: Number(detail.tiltX || 0),
+      tiltY: Number(detail.tiltY || 0),
+      azimuthAngle: Number(detail.azimuthAngle),
+      altitudeAngle: Number(detail.altitudeAngle),
+      twist: Number(detail.twist || 0),
+      timeStamp: Number(detail.eventTime || performance.now())
+    };
+    if (!Number.isFinite(eventLike.clientX) || !Number.isFinite(eventLike.clientY)) return false;
+    const point = eventPoint(eventLike, canvas);
+    if (session.kind === 'stroke') {
+      switchStrokeSessionToEraser(session, point);
+      return true;
+    }
+    session.point = point;
+    session.changed = eraseAt(session.pageIndex, point, session.radius ?? screenToolWidthToPage(session.pageIndex, state.eraserRadius)) || session.changed;
+    scheduleRenderPage(session.pageIndex);
+    return true;
   }
 
   function handlePointerDown(event) {
@@ -4097,7 +4197,7 @@
       if (points.length > 1 && !scribbleErased) {
         checkpoint(shape ? 'draw-shape' : 'draw-stroke');
         let committedObject;
-        if (shape) { committedObject = { id: uid('shape'), type: 'shape', ...shape, color: session.object.color, width: session.object.width, createdAt: now() }; page.objects.push(committedObject); }
+        if (shape) { committedObject = { id: uid('shape'), type: 'shape', ...shape, color: session.object.color, width: session.object.width, screenWidth: session.object.screenWidth, createdAt: now() }; page.objects.push(committedObject); }
         else { committedObject = session.object; page.objects.push(committedObject); }
         window.dispatchEvent(new CustomEvent('inkforge:stroke-committed', { detail: { pageIndex: session.pageIndex, documentId: currentDocument()?.id, objectId: committedObject.id, object: committedObject, wasShape: !!shape, holdDuration, duration } }));
       }
@@ -4939,6 +5039,7 @@
     $('#continuousToggle').checked = state.settings.continuous;
     const nativeAuto = $('#nativeAutoOcrToggle');
     if (nativeAuto) nativeAuto.checked = state.settings.autoOcr !== false;
+    applyHudTextOpacity();
     localizeSubtree($('#settingsSheet'));
     openModal('settingsSheet');
   }
@@ -4952,6 +5053,9 @@
     state.settings.drawHold = $('#drawHoldToggle').checked;
     state.settings.telemetry = $('#telemetryToggle').checked;
     state.settings.continuous = $('#continuousToggle').checked;
+    const hudOpacityRange = $('#hudTextOpacityRange');
+    if (hudOpacityRange) state.settings.hudTextOpacity = clamp(Number(hudOpacityRange.value || 100) / 100, .35, 1);
+    applyHudTextOpacity();
     $('#stylusTelemetry').hidden = !state.settings.telemetry;
     await storage.setSetting('preferences', state.settings);
     if (previousLanguage !== currentLanguage()) refreshLocalizedUi();
@@ -5058,8 +5162,8 @@
       case 'set-sticky-color': state.stickyColor = target.dataset.color; renderActiveToolMenu(); break;
       case 'set-tape-color': state.tapeColor = target.dataset.color; renderActiveToolMenu(); break;
       case 'insert-text-now': state.pendingInsert = { pageIndex: state.currentPageIndex, x: 120, y: 190, type: 'text' }; openTextSheet('text'); break;
-      case 'document-search': closeModal(); state.searchOpen = true; renderDocumentSearch(); setTimeout(() => $('#documentSearchInput').focus(), 80); break;
-      case 'close-document-search': state.searchOpen = false; renderDocumentSearch(); break;
+      case 'document-search': openDocumentSearch(); break;
+      case 'close-document-search': closeDocumentSearch(); break;
       case 'search-result': {
         state.searchHighlight = { pageIndex: Number(target.dataset.pageIndex), objectId: target.dataset.objectId || null }; scrollToPage(state.searchHighlight.pageIndex); renderPageCanvas(state.searchHighlight.pageIndex); break;
       }
@@ -5183,7 +5287,7 @@
     const modifier = event.ctrlKey || event.metaKey;
     if (modifier && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); }
     else if (modifier && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); }
-    else if (modifier && event.key.toLowerCase() === 'f') { event.preventDefault(); if (state.view === 'editor') { state.searchOpen = true; renderDocumentSearch(); $('#documentSearchInput').focus(); } else { $('#globalSearchPanel').hidden = false; $('#globalSearchInput').focus(); } }
+    else if (modifier && event.key.toLowerCase() === 'f') { event.preventDefault(); if (state.view === 'editor') openDocumentSearch(); else { $('#globalSearchPanel').hidden = false; $('#globalSearchInput').focus(); } }
     else if (modifier && event.key.toLowerCase() === 'c' && state.selection) copySelection(false);
     else if (modifier && event.key.toLowerCase() === 'x' && state.selection) copySelection(true);
     else if (modifier && event.key.toLowerCase() === 'v') pasteSelection();
@@ -5262,6 +5366,11 @@
     $('#imageInput').addEventListener('change', (event) => { const [file] = event.target.files || []; if (file) insertImageFile(file); event.target.value = ''; });
     $('#importInput').addEventListener('change', (event) => { const [file] = event.target.files || []; if (file) importIfnote(file); event.target.value = ''; });
     $('#settingsSheet').addEventListener('change', saveSettingsFromControls);
+    $('#settingsSheet').addEventListener('input', (event) => {
+      if (event.target?.id !== 'hudTextOpacityRange') return;
+      state.settings.hudTextOpacity = clamp(Number(event.target.value || 100) / 100, .35, 1);
+      applyHudTextOpacity();
+    });
     $('#penSettingsSheet').addEventListener('input', (event) => {
       const key = event.target.dataset.penSetting;
       if (!key) return;
@@ -5293,6 +5402,7 @@
     const savedPreferences = await storage.getSetting('preferences', {});
     state.settings = { ...state.settings, ...(legacySettings || {}), ...(savedPreferences || {}) };
     if (!LANGUAGE_META[state.settings.language]) state.settings.language = 'ko';
+    applyHudTextOpacity();
     await storage.setSetting('preferences', state.settings);
     const savedFolders = await storage.getSetting('folders', null);
     state.folders = Array.isArray(savedFolders) ? normalizeFolders(savedFolders) : deepClone(DEFAULT_FOLDERS);
@@ -5333,6 +5443,12 @@
       scheduleRenderPage,
       renderSidebar,
       renderDocumentSearch,
+      openDocumentSearch,
+      closeDocumentSearch,
+      applyStylusButtonEraser,
+      applyHudTextOpacity,
+      screenToolWidthToPage,
+      objectPageWidth,
       updateObjectMenu,
       syncPageJumpInput,
       checkpoint,

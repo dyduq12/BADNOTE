@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.22';
+  const VERSION = '3.3.23';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const AUTO_MATH_DELAY = 1050;
@@ -24,6 +24,7 @@
   let colorState = { h: 214, s: .8, v: .82 };
   let stylusGesture = null;
   let barrelEraser = null;
+  let stylusHudTimer = 0;
   let lastStylusActionAt = 0;
   let collisionFrame = 0;
 
@@ -522,13 +523,17 @@
   function showStylusHud(message, dx = 0, dy = 0) {
     const hud = $('#sPenGestureHud');
     if (!hud) return;
+    clearTimeout(stylusHudTimer);
     hud.classList.add('is-visible');
     hud.querySelector('strong').textContent = message;
     hud.style.setProperty('--gesture-x', `${clamp(dx, -90, 90)}px`);
     hud.style.setProperty('--gesture-y', `${clamp(dy, -90, 90)}px`);
+    stylusHudTimer = setTimeout(() => hideStylusHud(), message.includes('누르는 동안') ? 1400 : 950);
   }
 
   function hideStylusHud() {
+    clearTimeout(stylusHudTimer);
+    stylusHudTimer = 0;
     $('#sPenGestureHud')?.classList.remove('is-visible');
   }
 
@@ -544,6 +549,7 @@
       restoreTool: api.state.tool === 'eraser' ? null : api.state.tool,
       startedAt: performance.now()
     };
+    api.closeDocumentSearch?.();
     if (api.state.tool !== 'eraser') api.setTool('eraser');
     showStylusHud('S Pen 버튼: 누르는 동안 지우개', 0, 0);
   }
@@ -768,6 +774,8 @@
     stack.addEventListener('pointerup', handlePostStroke, false);
     document.addEventListener('click', handleCaptureClick, true);
     document.addEventListener('keydown', handleRemoteKey, true);
+    window.addEventListener('blur', hideStylusHud, true);
+    window.addEventListener('pointercancel', hideStylusHud, true);
     $('#modalBackdrop').addEventListener('click', () => { if (!$('#colorMixerSheet').hidden) closeColorMixer(); }, true);
   }
 

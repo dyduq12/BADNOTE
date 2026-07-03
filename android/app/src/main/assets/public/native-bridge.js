@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.22';
+  const VERSION = '3.3.23';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const HANDWRITING_OCR_DWELL_MS = 2800;
@@ -12,29 +12,34 @@
   const BARREL_BUTTON_LATCH_MS = 3500;
   const RELEASE_NOTES = {
     ko: [
-      '우측 필기 화면의 세로 페이지 스크롤 레일을 제거하고 페이지 번호 이동을 페이지 창 안으로 옮겼습니다.',
-      '페이지 창을 GoodNotes처럼 2열 썸네일 그리드로 바꾸고, 사이드바를 열어도 현재 페이지가 가려지지 않도록 재배치합니다.',
-      '텍스트, 스티키 노트, 수식 객체의 글자 크기를 기준 페이지 폭으로 보정해 화면 폭에 따라 pt 크기가 달라지는 문제를 줄였습니다.'
+      'S Pen 버튼 지우개 알림을 화면 왼쪽 위로 옮기고, 버튼 해제 후 알림이 남는 문제를 수정했습니다.',
+      '문서 검색 창을 닫은 직후 S Pen 버튼 지우개를 쓰면 검색 창이 다시 살짝 나타나 화면이 밀리는 문제를 막았습니다.',
+      'S Pen을 화면에 댄 상태에서 버튼을 눌러도 즉시 지우개로 전환되도록 처리하고, 같은 펜 두께 값이 확대율에 따라 달라 보이는 문제를 보정했습니다.',
+      '설정에서 HUD 텍스트 투명도를 조절할 수 있게 했습니다.'
     ],
     en: [
-      'Removed the right-side vertical page scroll rail and moved page-number navigation into the page panel.',
-      'Changed the page panel to a two-column thumbnail grid and reflows the editor so the current page is not covered by the sidebar.',
-      'Stabilized text, sticky-note, and math-object font sizes against the reference page width so the same pt value no longer shifts with the screen width.'
+      'Moved the S Pen button eraser notice to the top-left of the screen and fixed cases where it stayed visible after release.',
+      'Prevented the document search drawer from peeking back in and shifting the page after it was closed and the S Pen eraser was used.',
+      'The S Pen button now switches an already-touching pen stroke into erasing immediately, and pen thickness is rendered consistently across zoom levels.',
+      'Added a setting for HUD text opacity.'
     ],
     ja: [
-      '右側の縦ページスクロールレールを削除し、ページ番号移動をページパネル内へ移動しました。',
-      'ページパネルを2列のサムネイルグリッドに変更し、サイドバーを開いても現在のページが隠れないように再配置します。',
-      'テキスト、付箋、数式オブジェクトの文字サイズを基準ページ幅で補正し、同じpt値が画面幅で変わる問題を軽減しました。'
+      'S Penボタン消しゴムの通知を画面左上へ移動し、ボタンを離した後に残る場合を修正しました。',
+      '文書検索を閉じた直後にS Pen消しゴムを使うと検索パネルが少し戻って画面がずれる問題を防ぎました。',
+      'ペンを画面に接触したままS Penボタンを押しても即座に消しゴムへ切り替わり、ズーム率でペン幅の見た目が変わる問題を補正しました。',
+      '設定でHUDテキストの透明度を調整できるようにしました。'
     ],
     zh: [
-      '移除了右侧竖向页面滚动条，并将页码跳转移到页面面板中。',
-      '页面面板改为两列缩略图网格，打开侧边栏时会重新排列编辑区，避免当前页面被遮住。',
-      '文本、便签和公式对象的字号会按基准页面宽度校正，减少同一 pt 值随屏幕宽度变化的问题。'
+      '将 S Pen 按钮橡皮提示移到屏幕左上，并修复松开按钮后提示不消失的情况。',
+      '修复关闭文档搜索后使用 S Pen 橡皮时搜索抽屉轻微弹出并推动页面的问题。',
+      'S Pen 已接触屏幕时按下按钮也会立即切换为橡皮，并修正缩放后相同笔宽显示不一致的问题。',
+      '新增 HUD 文字透明度设置。'
     ],
     pt: [
-      'Removida a barra vertical de rolagem de páginas à direita e movida a navegação por número para o painel de páginas.',
-      'O painel de páginas agora usa miniaturas em duas colunas e reorganiza o editor para que a página atual não fique coberta pela barra lateral.',
-      'Os tamanhos de fonte de texto, notas adesivas e objetos matemáticos agora são ajustados pela largura de referência da página, reduzindo variações do mesmo valor em pt entre larguras de tela.'
+      'O aviso da borracha pelo botão da S Pen foi movido para o canto superior esquerdo, e casos em que ele ficava preso na tela foram corrigidos.',
+      'A gaveta de busca do documento nao reaparece nem empurra a pagina depois de fechada ao usar a borracha da S Pen.',
+      'Pressionar o botao da S Pen durante um traco em contato agora muda imediatamente para borracha, e a espessura da caneta fica consistente entre niveis de zoom.',
+      'Adicionada uma configuracao para a opacidade do texto HUD.'
     ]
   };
   const UPDATE_I18N = {
@@ -893,6 +898,7 @@
         y2: kind === 'arrow' ? last.y : bounds.y + bounds.h,
         color: object.color,
         width: object.width,
+        screenWidth: object.screenWidth,
         opacity: object.opacity,
         createdAt: object.createdAt || new Date().toISOString(),
         autoShapeSource: object.points
@@ -940,9 +946,21 @@
     }
   }
 
+  function hideStylusChip(delayMs = 0) {
+    const chip = document.getElementById('nativeStylusChip');
+    if (!chip) return;
+    clearTimeout(chip._hideTimer);
+    chip._hideTimer = setTimeout(() => chip.classList.remove('is-visible'), Math.max(0, delayMs));
+  }
+
   function setStylusChip(detail) {
     lastStylusEventAt = Date.now();
     const buttonsActive = !!(detail?.primaryButton || detail?.secondaryButton || detail?.barrelButton || detail?.eraser);
+    const action = Number(detail?.action);
+    if (!buttonsActive && (action === 1 || action === 3 || action === 12)) {
+      hideStylusChip(120);
+      return;
+    }
     if (!buttonsActive && lastStylusEventAt - lastStylusChipShownAt < 10000) return;
     lastStylusChipShownAt = lastStylusEventAt;
     let chip = document.getElementById('nativeStylusChip');
@@ -954,10 +972,12 @@
       document.body.appendChild(chip);
     }
     const device = String(detail?.device || '스타일러스');
-    chip.querySelector('.stylus-label').textContent = /samsung|s pen/i.test(device) ? 'S Pen 연결됨' : '스타일러스 연결됨';
+    chip.querySelector('.stylus-label').textContent = buttonsActive
+      ? 'S Pen 버튼: 지우개'
+      : (/samsung|s pen/i.test(device) ? 'S Pen 연결됨' : '스타일러스 연결됨');
     chip.classList.add('is-visible');
     clearTimeout(chip._hideTimer);
-    chip._hideTimer = setTimeout(() => chip.classList.remove('is-visible'), buttonsActive ? 900 : 1200);
+    chip._hideTimer = setTimeout(() => chip.classList.remove('is-visible'), buttonsActive ? 950 : 1200);
   }
 
   function rememberNativeStylus(detail) {
@@ -1021,6 +1041,10 @@
     const button = !!(lastStylusDetail?.primaryButton || lastStylusDetail?.secondaryButton || lastStylusDetail?.barrelButton);
     const toolType = Number(detail.toolType);
     const action = Number(detail.action);
+    if (button && action !== 1 && action !== 3) {
+      api.closeDocumentSearch?.();
+      api.applyStylusButtonEraser?.(lastStylusDetail);
+    }
     if (button && action !== 1 && action !== 3 && !barrelRestoreTool && api.state.tool !== 'eraser') {
       barrelRestoreTool = api.state.tool;
       api.setTool('eraser');
@@ -1028,6 +1052,7 @@
     } else if ((!button || action === 1 || action === 3) && barrelRestoreTool) {
       if (api.state.tool === 'eraser') api.setTool(barrelRestoreTool);
       barrelRestoreTool = null;
+      hideStylusChip(120);
     }
     if (toolType === 4 && action === 0 && api.state.tool !== 'eraser') {
       eraserRestoreTool = api.state.tool;
