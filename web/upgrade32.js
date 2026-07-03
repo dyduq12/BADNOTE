@@ -551,12 +551,12 @@
     };
     api.closeDocumentSearch?.();
     if (api.state.tool !== 'eraser') api.setTool('eraser');
-    showStylusHud('S Pen 버튼: 누르는 동안 지우개', 0, 0);
+    hideStylusHud();
   }
 
   function updateBarrelEraser(event) {
     if (!barrelEraser || barrelEraser.pointerId !== event.pointerId) return;
-    showStylusHud('S Pen 버튼: 지우개', 0, 0);
+    hideStylusHud();
   }
 
   function finishBarrelEraser(event) {

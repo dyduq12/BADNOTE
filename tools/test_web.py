@@ -877,6 +877,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
           async () => {
             const api = window.__inkforge;
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            api.setTool('pen');
             api.openDocumentSearch();
             await delay(120);
             api.closeDocumentSearch();
@@ -898,6 +899,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             const drawer = document.getElementById('documentSearch');
             const input = document.getElementById('documentSearchInput');
             const chip = document.getElementById('nativeStylusChip');
+            const toolDuringButton = api.state.tool;
             const chipRect = chip?.getBoundingClientRect();
             const chipLabel = chip?.querySelector('.stylus-label')?.textContent || '';
             const chipVisibleBeforeRelease = chip?.classList.contains('is-visible') === true;
@@ -906,8 +908,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
               action: 12,
               hover: true,
               toolType: 2,
-              buttonState: 0,
-              rawButtonState: 0,
+              buttonState: 32,
+              rawButtonState: 32,
+              primaryButton: true,
+              barrelButton: true,
               x: 80,
               y: 120,
               pressure: 0,
@@ -915,21 +919,30 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             }}));
             await delay(260);
             const chipHiddenAfterRelease = chip?.classList.contains('is-visible') === false;
+            const blackHudVisible = document.getElementById('sPenGestureHud')?.classList.contains('is-visible') === true;
             return {
               searchOpen: api.state.searchOpen,
               drawerOpen: drawer?.classList.contains('is-open') === true,
+              drawerHidden: drawer?.hidden === true,
               activeIsSearchInput: document.activeElement === input,
               chipLabel,
               chipVisibleBeforeRelease,
               chipTopLeft,
               chipHiddenAfterRelease,
+              blackHudVisible,
+              toolDuringButton,
+              restoredTool: api.state.tool,
               passed: api.state.searchOpen === false &&
                 drawer?.classList.contains('is-open') === false &&
+                drawer?.hidden === true &&
                 document.activeElement !== input &&
                 chipLabel.includes('S Pen 버튼: 지우개') &&
                 chipVisibleBeforeRelease &&
                 chipTopLeft &&
-                chipHiddenAfterRelease
+                chipHiddenAfterRelease &&
+                blackHudVisible === false &&
+                toolDuringButton === 'eraser' &&
+                api.state.tool !== 'eraser'
             };
           }
         """)
@@ -1480,8 +1493,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
               action: 12,
               hover: true,
               toolType: 2,
-              buttonState: 0,
-              rawButtonState: 0,
+              buttonState: 32,
+              rawButtonState: 32,
+              primaryButton: true,
+              barrelButton: true,
               x: client.x,
               y: client.y,
               pressure: 0,
@@ -1546,6 +1561,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
               action: 2,
               hover: false,
               toolType: 2,
+              pointerId: 0,
               buttonState: 32,
               rawButtonState: 32,
               primaryButton: true,
@@ -1556,13 +1572,17 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
               device: 'Samsung S Pen'
             });
             sendPointer('pointermove', 9302, clientFor(410, 430));
+            const blackHudVisibleDuringMove = document.getElementById('sPenGestureHud')?.classList.contains('is-visible') === true;
             sendPointer('pointerup', 9302, clientFor(410, 430));
             dispatchNative({
               action: 12,
               hover: true,
               toolType: 2,
-              buttonState: 0,
-              rawButtonState: 0,
+              pointerId: 0,
+              buttonState: 32,
+              rawButtonState: 32,
+              primaryButton: true,
+              barrelButton: true,
               x: clientFor(410, 430).x,
               y: clientFor(410, 430).y,
               pressure: 0,
@@ -1574,10 +1594,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             return {
               erased,
               noExtraStroke,
+              blackHudVisibleDuringMove,
               restoredTool: api.state.tool,
               objectCount: page.objects.length,
               beforeCount,
-              passed: erased && noExtraStroke && api.state.tool !== 'eraser'
+              passed: erased && noExtraStroke && blackHudVisibleDuringMove === false && api.state.tool !== 'eraser'
             };
           }
         """)

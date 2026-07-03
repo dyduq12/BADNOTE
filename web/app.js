@@ -984,6 +984,7 @@
     sidebarTab: 'pages',
     searchOpen: false,
     documentSearchFocusTimer: 0,
+    documentSearchSuppressedUntil: 0,
     readOnly: false,
     ruler: { visible: false, x: PAGE_WIDTH / 2, angle: 0, y: 500 },
     selection: null,
@@ -2974,6 +2975,7 @@
 
   function renderDocumentSearch() {
     const drawer = $('#documentSearch');
+    if (drawer) drawer.hidden = !state.searchOpen;
     drawer.classList.toggle('is-open', state.searchOpen);
     const input = $('#documentSearchInput');
     const query = normalizeText(input?.value || '');
@@ -2998,6 +3000,10 @@
   }
 
   function openDocumentSearch() {
+    if (performance.now() < (state.documentSearchSuppressedUntil || 0)) {
+      closeDocumentSearch();
+      return;
+    }
     closeModal();
     clearTimeout(state.documentSearchFocusTimer);
     state.searchOpen = true;
@@ -3014,6 +3020,11 @@
     const input = $('#documentSearchInput');
     if (document.activeElement === input) input.blur();
     renderDocumentSearch();
+  }
+
+  function suppressDocumentSearch(durationMs = 1000) {
+    state.documentSearchSuppressedUntil = Math.max(state.documentSearchSuppressedUntil || 0, performance.now() + Math.max(0, Number(durationMs) || 0));
+    closeDocumentSearch();
   }
 
   function highlightText(text, query) {
@@ -3947,11 +3958,11 @@
     if (!state.settings.sPenGestures) return false;
     const session = state.drawSession;
     if (!session || !['stroke','eraser'].includes(session.kind)) return false;
-    const nativePointerId = Number(detail.pointerId);
-    if (Number.isFinite(nativePointerId) && session.pointerId !== nativePointerId) return false;
     const canvas = $(`.page-canvas[data-page-index="${session.pageIndex}"]`);
     if (!canvas) return false;
     const pointer = state.activePointers.get(session.pointerId);
+    const activePointerType = pointer?.pointerType || 'pen';
+    if (!isStylusPointer(activePointerType)) return false;
     const eventLike = {
       clientX: Number.isFinite(pointer?.clientX) ? pointer.clientX : Number(detail.x),
       clientY: Number.isFinite(pointer?.clientY) ? pointer.clientY : Number(detail.y),
@@ -5445,6 +5456,7 @@
       renderDocumentSearch,
       openDocumentSearch,
       closeDocumentSearch,
+      suppressDocumentSearch,
       applyStylusButtonEraser,
       applyHudTextOpacity,
       screenToolWidthToPage,

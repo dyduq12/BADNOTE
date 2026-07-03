@@ -15,31 +15,36 @@
       'S Pen 버튼 지우개 알림을 화면 왼쪽 위로 옮기고, 버튼 해제 후 알림이 남는 문제를 수정했습니다.',
       '문서 검색 창을 닫은 직후 S Pen 버튼 지우개를 쓰면 검색 창이 다시 살짝 나타나 화면이 밀리는 문제를 막았습니다.',
       'S Pen을 화면에 댄 상태에서 버튼을 눌러도 즉시 지우개로 전환되도록 처리하고, 같은 펜 두께 값이 확대율에 따라 달라 보이는 문제를 보정했습니다.',
-      '설정에서 HUD 텍스트 투명도를 조절할 수 있게 했습니다.'
+      '설정에서 HUD 텍스트 투명도를 조절할 수 있게 했습니다.',
+      '재배포 APK에서는 S Pen 버튼 해제 감지와 Android/Web pointerId 불일치 문제를 추가로 수정하고 검정 지우개 HUD를 제거했습니다.'
     ],
     en: [
       'Moved the S Pen button eraser notice to the top-left of the screen and fixed cases where it stayed visible after release.',
       'Prevented the document search drawer from peeking back in and shifting the page after it was closed and the S Pen eraser was used.',
       'The S Pen button now switches an already-touching pen stroke into erasing immediately, and pen thickness is rendered consistently across zoom levels.',
-      'Added a setting for HUD text opacity.'
+      'Added a setting for HUD text opacity.',
+      'The republished APK further fixes S Pen button release detection, Android/Web pointer-id mismatches, and removes the duplicate dark eraser HUD.'
     ],
     ja: [
       'S Penボタン消しゴムの通知を画面左上へ移動し、ボタンを離した後に残る場合を修正しました。',
       '文書検索を閉じた直後にS Pen消しゴムを使うと検索パネルが少し戻って画面がずれる問題を防ぎました。',
       'ペンを画面に接触したままS Penボタンを押しても即座に消しゴムへ切り替わり、ズーム率でペン幅の見た目が変わる問題を補正しました。',
-      '設定でHUDテキストの透明度を調整できるようにしました。'
+      '設定でHUDテキストの透明度を調整できるようにしました。',
+      '再配布APKではS Penボタンの解除検知、Android/Web pointerId不一致、重複する黒い消しゴムHUDを追加修正しました。'
     ],
     zh: [
       '将 S Pen 按钮橡皮提示移到屏幕左上，并修复松开按钮后提示不消失的情况。',
       '修复关闭文档搜索后使用 S Pen 橡皮时搜索抽屉轻微弹出并推动页面的问题。',
       'S Pen 已接触屏幕时按下按钮也会立即切换为橡皮，并修正缩放后相同笔宽显示不一致的问题。',
-      '新增 HUD 文字透明度设置。'
+      '新增 HUD 文字透明度设置。',
+      '重新发布的 APK 进一步修复 S Pen 按钮释放检测、Android/Web pointerId 不一致，并移除重复的黑色橡皮 HUD。'
     ],
     pt: [
       'O aviso da borracha pelo botão da S Pen foi movido para o canto superior esquerdo, e casos em que ele ficava preso na tela foram corrigidos.',
       'A gaveta de busca do documento nao reaparece nem empurra a pagina depois de fechada ao usar a borracha da S Pen.',
       'Pressionar o botao da S Pen durante um traco em contato agora muda imediatamente para borracha, e a espessura da caneta fica consistente entre niveis de zoom.',
-      'Adicionada uma configuracao para a opacidade do texto HUD.'
+      'Adicionada uma configuracao para a opacidade do texto HUD.',
+      'O APK republicado corrige a deteccao de soltar o botao da S Pen, diferencas de pointerId Android/Web e remove o HUD escuro duplicado.'
     ]
   };
   const UPDATE_I18N = {
@@ -953,11 +958,15 @@
     chip._hideTimer = setTimeout(() => chip.classList.remove('is-visible'), Math.max(0, delayMs));
   }
 
+  function isStylusReleaseAction(action) {
+    return action === 1 || action === 3 || action === 12;
+  }
+
   function setStylusChip(detail) {
     lastStylusEventAt = Date.now();
     const buttonsActive = !!(detail?.primaryButton || detail?.secondaryButton || detail?.barrelButton || detail?.eraser);
     const action = Number(detail?.action);
-    if (!buttonsActive && (action === 1 || action === 3 || action === 12)) {
+    if (!buttonsActive && isStylusReleaseAction(action)) {
       hideStylusChip(120);
       return;
     }
@@ -982,14 +991,18 @@
 
   function rememberNativeStylus(detail) {
     const action = Number(detail?.action);
+    const releaseAction = isStylusReleaseAction(action);
     const nowTime = performance.now();
     const buttonState = Number(detail?.buttonState || 0);
     const rawButtonState = Number(detail?.rawButtonState ?? buttonState);
-    const rawPrimary = !!detail?.primaryButton || (buttonState & 32) !== 0 || (rawButtonState & 32) !== 0;
-    const rawSecondary = !!detail?.secondaryButton || (buttonState & 64) !== 0 || (rawButtonState & 64) !== 0;
-    const rawBarrel = !!detail?.barrelButton || rawPrimary || rawSecondary || (buttonState & 96) !== 0 || (rawButtonState & 96) !== 0;
-    if (rawBarrel && action !== 1 && action !== 3 && action !== 12) barrelButtonLatchUntil = nowTime + BARREL_BUTTON_LATCH_MS;
-    else if (action === 1 || action === 3 || action === 12) barrelButtonLatchUntil = 0;
+    const effectiveButtonState = releaseAction ? 0 : buttonState;
+    const rawPrimarySignal = !!detail?.primaryButton || (buttonState & 32) !== 0 || (rawButtonState & 32) !== 0;
+    const rawSecondarySignal = !!detail?.secondaryButton || (buttonState & 64) !== 0 || (rawButtonState & 64) !== 0;
+    const rawPrimary = !releaseAction && rawPrimarySignal;
+    const rawSecondary = !releaseAction && rawSecondarySignal;
+    const rawBarrel = !releaseAction && (!!detail?.barrelButton || rawPrimarySignal || rawSecondarySignal || (buttonState & 96) !== 0 || (rawButtonState & 96) !== 0);
+    if (rawBarrel) barrelButtonLatchUntil = nowTime + BARREL_BUTTON_LATCH_MS;
+    else if (releaseAction) barrelButtonLatchUntil = 0;
     const latchedBarrel = nowTime < barrelButtonLatchUntil;
     lastStylusDetail = {
       ...detail,
@@ -997,8 +1010,9 @@
       y: Number(detail?.y),
       pressure: Number(detail?.pressure),
       toolType: Number(detail?.toolType),
-      buttonState,
+      buttonState: effectiveButtonState,
       rawButtonState,
+      releaseAction,
       primaryButton: rawPrimary || (latchedBarrel && !rawSecondary),
       secondaryButton: rawSecondary,
       barrelButton: rawBarrel || latchedBarrel,
@@ -1037,19 +1051,19 @@
   function handleNativeStylus(event) {
     const detail = event.detail || {};
     rememberNativeStylus(detail);
-    setStylusChip(detail);
+    setStylusChip(lastStylusDetail || detail);
     const button = !!(lastStylusDetail?.primaryButton || lastStylusDetail?.secondaryButton || lastStylusDetail?.barrelButton);
     const toolType = Number(detail.toolType);
     const action = Number(detail.action);
-    if (button && action !== 1 && action !== 3) {
-      api.closeDocumentSearch?.();
+    const releaseAction = isStylusReleaseAction(action);
+    if (button && !releaseAction) {
+      api.suppressDocumentSearch?.(1200) ?? api.closeDocumentSearch?.();
       api.applyStylusButtonEraser?.(lastStylusDetail);
     }
-    if (button && action !== 1 && action !== 3 && !barrelRestoreTool && api.state.tool !== 'eraser') {
+    if (button && !releaseAction && !barrelRestoreTool && api.state.tool !== 'eraser') {
       barrelRestoreTool = api.state.tool;
       api.setTool('eraser');
-      api.toast?.('S Pen 버튼: 누르는 동안 지우개');
-    } else if ((!button || action === 1 || action === 3) && barrelRestoreTool) {
+    } else if ((!button || releaseAction) && barrelRestoreTool) {
       if (api.state.tool === 'eraser') api.setTool(barrelRestoreTool);
       barrelRestoreTool = null;
       hideStylusChip(120);
@@ -1057,7 +1071,7 @@
     if (toolType === 4 && action === 0 && api.state.tool !== 'eraser') {
       eraserRestoreTool = api.state.tool;
       api.setTool('eraser');
-    } else if (eraserRestoreTool && (action === 1 || action === 3)) {
+    } else if (eraserRestoreTool && releaseAction) {
       api.setTool(eraserRestoreTool);
       eraserRestoreTool = null;
     }

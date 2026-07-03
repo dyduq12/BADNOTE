@@ -369,13 +369,17 @@ public final class MainActivity extends Activity {
             lastMoveDispatchNanos = now;
             int index = Math.max(0, Math.min(event.getActionIndex(), event.getPointerCount() - 1));
             int buttonState = event.getButtonState();
-            boolean primaryNow = (buttonState & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0;
-            boolean secondaryNow = (buttonState & MotionEvent.BUTTON_STYLUS_SECONDARY) != 0;
+            int actionButton = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? event.getActionButton() : 0;
+            boolean primaryNow = (buttonState & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0 ||
+                    actionButton == MotionEvent.BUTTON_STYLUS_PRIMARY;
+            boolean secondaryNow = (buttonState & MotionEvent.BUTTON_STYLUS_SECONDARY) != 0 ||
+                    actionButton == MotionEvent.BUTTON_STYLUS_SECONDARY;
             if (action == MotionEvent.ACTION_BUTTON_RELEASE ||
                     action == MotionEvent.ACTION_CANCEL ||
-                    action == MotionEvent.ACTION_UP) {
-                stylusPrimaryButtonDown = primaryNow;
-                stylusSecondaryButtonDown = secondaryNow;
+                    action == MotionEvent.ACTION_UP ||
+                    action == MotionEvent.ACTION_HOVER_EXIT) {
+                stylusPrimaryButtonDown = false;
+                stylusSecondaryButtonDown = false;
             } else {
                 if (primaryNow) stylusPrimaryButtonDown = true;
                 if (secondaryNow) stylusSecondaryButtonDown = true;
