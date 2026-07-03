@@ -83,4 +83,4 @@ python3 tools/test_web.py --web web
 ## 기여자
 
 - 프로젝트 관리 및 개발: [jsk1004ha](https://github.com/jsk1004ha)
-- Special thanks: [Photon616](https://github.com/Photon616) - 3.3.24 앱 아이콘 제작
+- Special thanks: [Photon616](https://github.com/Photon616) - 앱 아이콘 제작
