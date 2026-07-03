@@ -1844,6 +1844,197 @@
     ctx.restore();
   }
 
+  function shouldUseVectorOverlay(page) {
+    return !!page && state.zoom > 1.05;
+  }
+
+  function svgNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '0';
+    return number.toFixed(2).replace(/\.?0+$/, '');
+  }
+
+  function setSvgAttrs(element, attrs) {
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value == null) continue;
+      element.setAttribute(key, String(value));
+    }
+    return element;
+  }
+
+  function createSvgElement(name, attrs = {}) {
+    return setSvgAttrs(document.createElementNS('http://www.w3.org/2000/svg', name), attrs);
+  }
+
+  function svgStrokePath(points) {
+    if (!Array.isArray(points) || !points.length) return '';
+    const path = [`M ${svgNumber(points[0].x)} ${svgNumber(points[0].y)}`];
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+      path.push(`Q ${svgNumber(a.x)} ${svgNumber(a.y)} ${svgNumber(midX)} ${svgNumber(midY)} L ${svgNumber(b.x)} ${svgNumber(b.y)}`);
+    }
+    return path.join(' ');
+  }
+
+  function averageStrokeWidth(stroke, points, pageIndex) {
+    if (!Array.isArray(points) || points.length <= 1) return renderWidthForObject(stroke, pageIndex);
+    let total = 0, samples = 0;
+    const step = Math.max(1, Math.floor(points.length / 24));
+    for (let i = 1; i < points.length; i += step) {
+      total += (brushSegmentWidth(stroke, points[i - 1], points[i], i - 1, points.length) + brushSegmentWidth(stroke, points[i], points[i - 1], i, points.length)) / 2;
+      samples++;
+    }
+    return samples ? total / samples : renderWidthForObject(stroke, pageIndex);
+  }
+
+  function appendVectorStroke(svg, stroke, pageIndex) {
+    if (!stroke?.points?.length) return;
+    const renderStrokeObject = Number.isFinite(Number(stroke.screenWidth)) && Number(stroke.screenWidth) > 0
+      ? { ...stroke, width: renderWidthForObject(stroke, pageIndex) }
+      : stroke;
+    const settings = state.penSettings[renderStrokeObject.brush] || BRUSH_META[renderStrokeObject.brush] || BRUSH_META.fountain;
+    const rawPoints = smoothPoints(renderStrokeObject.points, settings.smoothing ?? .3);
+    const points = renderStrokeObject.brush === 'pencil'
+      ? pencilRenderPoints(renderStrokeObject, rawPoints, state.penSettings.pencil || BRUSH_META.pencil)
+      : rawPoints;
+    const color = renderStrokeObject.color || '#111827';
+    const opacity = renderStrokeObject.opacity ?? settings.opacity ?? 1;
+    if (points.length === 1) {
+      svg.appendChild(createSvgElement('circle', {
+        cx: svgNumber(points[0].x),
+        cy: svgNumber(points[0].y),
+        r: svgNumber(Math.max(.25, renderStrokeObject.width / 2)),
+        fill: color,
+        opacity: svgNumber(opacity),
+        'data-vector-object-id': renderStrokeObject.id || ''
+      }));
+      return;
+    }
+    const width = Math.max(.25, averageStrokeWidth(renderStrokeObject, points, pageIndex));
+    const attrs = {
+      d: svgStrokePath(points),
+      fill: 'none',
+      stroke: color,
+      'stroke-width': svgNumber(width),
+      'stroke-linecap': renderStrokeObject.brush === 'highlighter' ? 'butt' : 'round',
+      'stroke-linejoin': 'round',
+      opacity: svgNumber(renderStrokeObject.brush === 'highlighter' ? (renderStrokeObject.opacity ?? .28) : opacity),
+      'data-vector-object-id': renderStrokeObject.id || ''
+    };
+    const path = createSvgElement('path', attrs);
+    if (renderStrokeObject.brush === 'highlighter') path.style.mixBlendMode = 'multiply';
+    if (renderStrokeObject.brush === 'pencil') path.style.mixBlendMode = 'multiply';
+    svg.appendChild(path);
+  }
+
+  function svgShapePath(object) {
+    const x = Math.min(object.x1, object.x2), y = Math.min(object.y1, object.y2);
+    const w = Math.max(1, Math.abs(object.x2 - object.x1)), h = Math.max(1, Math.abs(object.y2 - object.y1));
+    const cx = x + w / 2, cy = y + h / 2;
+    const polygon = (sides, rotation = -Math.PI / 2) => {
+      const points = [];
+      for (let index = 0; index < sides; index++) {
+        const angle = rotation + index * Math.PI * 2 / sides;
+        points.push(`${svgNumber(cx + Math.cos(angle) * w / 2)} ${svgNumber(cy + Math.sin(angle) * h / 2)}`);
+      }
+      return `M ${points.join(' L ')} Z`;
+    };
+    switch (object.shape) {
+      case 'rectangle':
+      case 'square':
+        return `M ${svgNumber(x)} ${svgNumber(y)} H ${svgNumber(x + w)} V ${svgNumber(y + h)} H ${svgNumber(x)} Z`;
+      case 'rounded-rectangle': {
+        const r = Math.min(24, w / 5, h / 5);
+        return `M ${svgNumber(x + r)} ${svgNumber(y)} H ${svgNumber(x + w - r)} Q ${svgNumber(x + w)} ${svgNumber(y)} ${svgNumber(x + w)} ${svgNumber(y + r)} V ${svgNumber(y + h - r)} Q ${svgNumber(x + w)} ${svgNumber(y + h)} ${svgNumber(x + w - r)} ${svgNumber(y + h)} H ${svgNumber(x + r)} Q ${svgNumber(x)} ${svgNumber(y + h)} ${svgNumber(x)} ${svgNumber(y + h - r)} V ${svgNumber(y + r)} Q ${svgNumber(x)} ${svgNumber(y)} ${svgNumber(x + r)} ${svgNumber(y)} Z`;
+      }
+      case 'triangle': return polygon(3);
+      case 'diamond': return `M ${svgNumber(cx)} ${svgNumber(y)} L ${svgNumber(x + w)} ${svgNumber(cy)} L ${svgNumber(cx)} ${svgNumber(y + h)} L ${svgNumber(x)} ${svgNumber(cy)} Z`;
+      case 'pentagon': return polygon(5);
+      case 'hexagon': return polygon(6, 0);
+      case 'trapezoid': return `M ${svgNumber(x + w * .22)} ${svgNumber(y)} L ${svgNumber(x + w * .78)} ${svgNumber(y)} L ${svgNumber(x + w)} ${svgNumber(y + h)} L ${svgNumber(x)} ${svgNumber(y + h)} Z`;
+      case 'parallelogram': return `M ${svgNumber(x + w * .22)} ${svgNumber(y)} L ${svgNumber(x + w)} ${svgNumber(y)} L ${svgNumber(x + w * .78)} ${svgNumber(y + h)} L ${svgNumber(x)} ${svgNumber(y + h)} Z`;
+      case 'curve': return `M ${svgNumber(object.x1)} ${svgNumber(object.y1)} Q ${svgNumber(object.cx ?? cx)} ${svgNumber(object.cy ?? (y - h * .25))} ${svgNumber(object.x2)} ${svgNumber(object.y2)}`;
+      case 'arc': return `M ${svgNumber(x)} ${svgNumber(y + h)} A ${svgNumber(w / 2)} ${svgNumber(h)} 0 0 1 ${svgNumber(x + w)} ${svgNumber(y + h)}`;
+      case 'line':
+      default:
+        return `M ${svgNumber(object.x1)} ${svgNumber(object.y1)} L ${svgNumber(object.x2)} ${svgNumber(object.y2)}`;
+    }
+  }
+
+  function appendVectorShape(svg, object, pageIndex) {
+    const lineWidth = renderWidthForObject(object, pageIndex);
+    if (object.shape === 'ellipse' || object.shape === 'circle') {
+      const x = Math.min(object.x1, object.x2), y = Math.min(object.y1, object.y2);
+      const w = Math.max(1, Math.abs(object.x2 - object.x1)), h = Math.max(1, Math.abs(object.y2 - object.y1));
+      svg.appendChild(createSvgElement('ellipse', {
+        cx: svgNumber(x + w / 2),
+        cy: svgNumber(y + h / 2),
+        rx: svgNumber(w / 2),
+        ry: svgNumber(h / 2),
+        fill: object.fill || 'transparent',
+        stroke: object.color || '#1f2937',
+        'stroke-width': svgNumber(lineWidth),
+        'data-vector-object-id': object.id || ''
+      }));
+      return;
+    }
+    svg.appendChild(createSvgElement('path', {
+      d: svgShapePath(object),
+      fill: object.fill || 'transparent',
+      stroke: object.color || '#1f2937',
+      'stroke-width': svgNumber(lineWidth),
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+      opacity: svgNumber(object.opacity ?? 1),
+      'data-vector-object-id': object.id || ''
+    }));
+  }
+
+  function isVectorOverlayObject(object) {
+    return object?.type === 'stroke' || object?.type === 'shape';
+  }
+
+  function ensureVectorOverlay(wrap, pageIndex) {
+    if (!wrap) return null;
+    let svg = wrap.querySelector('svg.page-vector-overlay');
+    if (!svg) {
+      svg = createSvgElement('svg', {
+        class: 'page-vector-overlay',
+        viewBox: `0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}`,
+        preserveAspectRatio: 'none',
+        'aria-hidden': 'true',
+        focusable: 'false'
+      });
+      wrap.appendChild(svg);
+    }
+    svg.dataset.pageIndex = String(pageIndex);
+    return svg;
+  }
+
+  function renderVectorOverlay(pageIndex) {
+    const doc = currentDocument();
+    const page = doc?.pages?.[pageIndex];
+    const wrap = $(`.page-wrap[data-page-index="${pageIndex}"]`);
+    const svg = ensureVectorOverlay(wrap, pageIndex);
+    if (!svg) return;
+    svg.setAttribute('viewBox', `0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}`);
+    svg.replaceChildren();
+    const enabled = shouldUseVectorOverlay(page);
+    svg.hidden = !enabled;
+    if (!enabled) return;
+    for (const object of page.objects || []) {
+      if (object.hidden) continue;
+      if (object.type === 'stroke') appendVectorStroke(svg, object, pageIndex);
+      else if (object.type === 'shape') appendVectorShape(svg, object, pageIndex);
+    }
+    const session = state.drawSession;
+    if (session?.pageIndex === pageIndex && (session.kind === 'stroke' || session.kind === 'shape' || session.kind === 'shape-adjust')) {
+      if (session.object?.type === 'stroke') appendVectorStroke(svg, session.object, pageIndex);
+      else if (session.object?.type === 'shape') appendVectorShape(svg, session.object, pageIndex);
+    }
+  }
+
   function wrapText(ctx, text, maxWidth) {
     const paragraphs = String(text || '').split(/\n/);
     const lines = [];
@@ -2042,6 +2233,8 @@
   function renderTransient(ctx, pageIndex) {
     const session = state.drawSession;
     if (!session || session.pageIndex !== pageIndex) return;
+    const page = currentDocument()?.pages?.[pageIndex];
+    if (shouldUseVectorOverlay(page) && (session.kind === 'stroke' || session.kind === 'shape' || session.kind === 'shape-adjust')) return;
     if (session.kind === 'stroke') renderStroke(ctx, session.object, pageIndex);
     else if (session.kind === 'shape' || session.kind === 'shape-adjust') renderShape(ctx, session.object, pageIndex);
     else if (session.kind === 'lasso') {
@@ -2123,7 +2316,11 @@
 
   function renderPageScene(ctx, page, pageIndex = 0) {
     renderPageBackground(ctx, page, pageIndex);
-    for (const object of page.objects || []) renderObject(ctx, object, pageIndex);
+    const vectorOverlay = shouldUseVectorOverlay(page);
+    for (const object of page.objects || []) {
+      if (vectorOverlay && isVectorOverlayObject(object)) continue;
+      renderObject(ctx, object, pageIndex);
+    }
     if (state.searchHighlight?.pageIndex === pageIndex) {
       const object = page.objects.find((item) => item.id === state.searchHighlight.objectId);
       if (object) {
@@ -2189,6 +2386,7 @@
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     renderPageScene(ctx, page, pageIndex);
+    renderVectorOverlay(pageIndex);
   }
 
   function renderPageToCanvas(canvas, page, pageIndex = 0, width = 300, height = 424) {
@@ -2548,6 +2746,7 @@
     canvas.width = PAGE_WIDTH; canvas.height = PAGE_HEIGHT;
     canvas.setAttribute('aria-label', `${index + 1}페이지`);
     (placeholder || wrap.firstChild)?.replaceWith(canvas);
+    ensureVectorOverlay(wrap, index);
     scheduleRenderPage(index);
   }
 
@@ -2562,6 +2761,7 @@
       state.renderFrames.delete(index);
     }
     const placeholder = document.createElement('div'); placeholder.className = 'page-placeholder';
+    wrap.querySelector('svg.page-vector-overlay')?.remove();
     canvas.width = 1;
     canvas.height = 1;
     canvas.replaceWith(placeholder);

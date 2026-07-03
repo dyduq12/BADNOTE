@@ -479,6 +479,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 }
 .page-wrap.is-active { box-shadow: 0 0 0 2px rgba(19,151,237,.25); }
 .page-canvas {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: block;
@@ -486,6 +488,15 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   box-shadow: 0 8px 30px rgba(34,38,46,.16);
   touch-action: none;
   cursor: crosshair;
+}
+.page-vector-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
 }
 .page-stack[data-tool="hand"] .page-canvas { cursor: grab; }
 .page-stack[data-tool="hand"] .page-canvas:active { cursor: grabbing; }

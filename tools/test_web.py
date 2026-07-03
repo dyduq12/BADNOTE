@@ -575,6 +575,78 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             };
           }
         """)
+        results["zoom_vector_ink_overlay"] = await page.evaluate("""
+          async () => {
+            const api = window.__inkforge;
+            const delayFrame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const doc = api.currentDocument();
+            const pageIndex = api.state.currentPageIndex;
+            const page = doc.pages[pageIndex];
+            const previous = {
+              backgroundImage: page.backgroundImage,
+              backgroundAssetId: page.backgroundAssetId,
+              importedFromPdf: page.importedFromPdf
+            };
+            page.objects = page.objects.filter(object => !['zoom_vector_stroke', 'zoom_vector_shape'].includes(object.id));
+            page.backgroundImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+            page.backgroundAssetId = null;
+            page.importedFromPdf = true;
+            page.objects.push({
+              id: 'zoom_vector_stroke',
+              type: 'stroke',
+              brush: 'fountain',
+              color: '#111827',
+              width: 4,
+              screenWidth: 4,
+              opacity: 1,
+              points: [
+                { x: 140, y: 220, p: .42 },
+                { x: 260, y: 250, p: .58 },
+                { x: 390, y: 310, p: .72 },
+                { x: 520, y: 360, p: .64 }
+              ]
+            });
+            page.objects.push({
+              id: 'zoom_vector_shape',
+              type: 'shape',
+              shape: 'rectangle',
+              color: '#1397ed',
+              width: 4,
+              screenWidth: 4,
+              x1: 610,
+              y1: 260,
+              x2: 820,
+              y2: 430
+            });
+            api.setZoom(5.2);
+            await delayFrame();
+            api.renderPageCanvas(pageIndex);
+            await delayFrame();
+            const canvas = document.querySelector(`.page-canvas[data-page-index="${pageIndex}"]`);
+            const overlay = document.querySelector(`.page-wrap[data-page-index="${pageIndex}"] .page-vector-overlay`);
+            const ids = [...(overlay?.querySelectorAll('[data-vector-object-id]') || [])].map(node => node.getAttribute('data-vector-object-id'));
+            const result = {
+              zoom: api.state.zoom,
+              canvasClientWidth: canvas.clientWidth,
+              canvasBackingWidth: canvas.width,
+              overlayHidden: overlay?.hidden,
+              overlayViewBox: overlay?.getAttribute('viewBox'),
+              vectorIds: ids,
+              passed: canvas.width < canvas.clientWidth &&
+                overlay?.hidden === false &&
+                overlay?.getAttribute('viewBox') === '0 0 1000 1414' &&
+                ids.includes('zoom_vector_stroke') &&
+                ids.includes('zoom_vector_shape')
+            };
+            page.objects = page.objects.filter(object => !['zoom_vector_stroke', 'zoom_vector_shape'].includes(object.id));
+            if (previous.backgroundImage === undefined) delete page.backgroundImage; else page.backgroundImage = previous.backgroundImage;
+            if (previous.backgroundAssetId === undefined) delete page.backgroundAssetId; else page.backgroundAssetId = previous.backgroundAssetId;
+            if (previous.importedFromPdf === undefined) delete page.importedFromPdf; else page.importedFromPdf = previous.importedFromPdf;
+            api.setZoom(1.5);
+            api.renderPageCanvas(pageIndex);
+            return result;
+          }
+        """)
         results["zoom_anchor_stability"] = await page.evaluate("""
           async () => {
             const api = window.__inkforge;
