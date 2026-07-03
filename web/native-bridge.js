@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.24';
+  const VERSION = '3.3.25';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const HANDWRITING_OCR_DWELL_MS = 2800;
@@ -12,6 +12,8 @@
   const BARREL_BUTTON_LATCH_MS = 3500;
   const RELEASE_NOTES = {
     ko: [
+      '펜과 도형 획 두께를 현재 확대율이 아니라 페이지 기준 두께로 고정해, 확대하면 필기도 페이지와 함께 자연스럽게 커지도록 수정했습니다.',
+      'S Pen 버튼이 KeyEvent로 들어오는 기기에서도 버튼을 누르는 동안만 지우개가 작동하고, 화면에 닿은 상태에서 눌러도 즉시 지워지도록 수정했습니다.',
       '배드노트 앱 아이콘을 새 불꽃 노트 아이콘으로 변경했습니다.',
       'S Pen 버튼 지우개 알림을 화면 왼쪽 위로 옮기고, 버튼 해제 후 알림이 남는 문제를 수정했습니다.',
       '문서 검색 창을 닫은 직후 S Pen 버튼 지우개를 쓰면 검색 창이 다시 살짝 나타나 화면이 밀리는 문제를 막았습니다.',
@@ -21,6 +23,8 @@
       '고배율 확대에서 필기와 도형이 깨져 보이지 않도록 벡터 오버레이 렌더링을 추가했습니다.'
     ],
     en: [
+      'Pen and shape stroke widths are now fixed in page units instead of the current zoom level, so ink scales naturally with the page while zooming.',
+      'S Pen button KeyEvent input now acts as a hold-to-erase state, including when the pen is already touching the screen.',
       'Updated the bad note app icon to the new fire note icon.',
       'Moved the S Pen button eraser notice to the top-left of the screen and fixed cases where it stayed visible after release.',
       'Prevented the document search drawer from peeking back in and shifting the page after it was closed and the S Pen eraser was used.',
@@ -30,6 +34,8 @@
       'Added vector overlay rendering so handwriting and shapes stay sharp at high zoom.'
     ],
     ja: [
+      'ペンと図形の線幅を現在のズーム率ではなくページ基準に固定し、拡大時に筆跡もページと一緒に自然に大きくなるよう修正しました。',
+      'S PenボタンがKeyEventとして届く端末でも、押している間だけ消しゴムとして動作し、接触中に押しても即座に消せるよう修正しました。',
       'bad noteのアプリアイコンを新しいファイヤーノートアイコンに変更しました。',
       'S Penボタン消しゴムの通知を画面左上へ移動し、ボタンを離した後に残る場合を修正しました。',
       '文書検索を閉じた直後にS Pen消しゴムを使うと検索パネルが少し戻って画面がずれる問題を防ぎました。',
@@ -39,6 +45,8 @@
       '高倍率ズームでも手書きと図形が粗く見えないよう、ベクターオーバーレイ描画を追加しました。'
     ],
     zh: [
+      '笔和图形描边宽度现在按页面单位固定，而不是按当前缩放级别计算，因此缩放时笔迹会随页面自然变大。',
+      '当 S Pen 按钮以 KeyEvent 输入时，现在也会作为按住即橡皮的状态处理，笔尖已接触屏幕时按下也能立即擦除。',
       '已将 bad note 应用图标更新为新的火焰笔记图标。',
       '将 S Pen 按钮橡皮提示移到屏幕左上，并修复松开按钮后提示不消失的情况。',
       '修复关闭文档搜索后使用 S Pen 橡皮时搜索抽屉轻微弹出并推动页面的问题。',
@@ -48,6 +56,8 @@
       '新增矢量叠加渲染，让手写和图形在高倍缩放时保持清晰。'
     ],
     pt: [
+      'As larguras da caneta e das formas agora ficam fixas em unidades da pagina, nao no zoom atual, para que a escrita aumente naturalmente junto com a pagina.',
+      'A entrada KeyEvent do botao da S Pen agora funciona como borracha apenas enquanto estiver pressionada, inclusive com a caneta ja tocando a tela.',
       'Atualizado o icone do app bad note para o novo icone fire note.',
       'O aviso da borracha pelo botão da S Pen foi movido para o canto superior esquerdo, e casos em que ele ficava preso na tela foram corrigidos.',
       'A gaveta de busca do documento nao reaparece nem empurra a pagina depois de fechada ao usar a borracha da S Pen.',
@@ -262,6 +272,7 @@
   let recognitionReadyChipShown = false;
   let barrelRestoreTool = null;
   let barrelButtonLatchUntil = 0;
+  let stylusKeyBarrelDown = false;
   let updateSheet = null;
   let updateCheckManual = false;
   let updateState = { status: 'idle', release: null, progress: 0 };
@@ -1087,10 +1098,73 @@
     }
   }
 
+  function activateStylusKeyBarrel(detail = {}) {
+    if (!api?.state.settings.sPenGestures) return;
+    const nowTime = performance.now();
+    const previous = lastStylusDetail || {};
+    barrelButtonLatchUntil = nowTime + BARREL_BUTTON_LATCH_MS;
+    stylusKeyBarrelDown = true;
+    lastStylusDetail = {
+      ...previous,
+      ...detail,
+      x: Number.isFinite(Number(detail.x)) ? Number(detail.x) : Number(previous.x),
+      y: Number.isFinite(Number(detail.y)) ? Number(detail.y) : Number(previous.y),
+      pressure: Number.isFinite(Number(detail.pressure)) ? Number(detail.pressure) : Number(previous.pressure || .55),
+      toolType: Number.isFinite(Number(detail.toolType)) ? Number(detail.toolType) : Number(previous.toolType || 2),
+      buttonState: 32,
+      rawButtonState: 32,
+      releaseAction: false,
+      primaryButton: true,
+      secondaryButton: false,
+      barrelButton: true,
+      latchedBarrelButton: false,
+      eraser: Number(detail?.toolType) === 4,
+      device: detail.device || previous.device || 'Samsung S Pen',
+      receivedAt: nowTime
+    };
+    window.__inkforgeLastNativeStylus = lastStylusDetail;
+    setStylusChip(lastStylusDetail);
+    api.suppressDocumentSearch?.(1200) ?? api.closeDocumentSearch?.();
+    api.applyStylusButtonEraser?.(lastStylusDetail);
+    if (!barrelRestoreTool && api.state.tool !== 'eraser') barrelRestoreTool = api.state.tool;
+    if (api.state.tool !== 'eraser') api.setTool('eraser');
+  }
+
+  function releaseStylusKeyBarrel() {
+    if (!stylusKeyBarrelDown) return false;
+    stylusKeyBarrelDown = false;
+    barrelButtonLatchUntil = 0;
+    if (lastStylusDetail) {
+      lastStylusDetail = {
+        ...lastStylusDetail,
+        buttonState: 0,
+        rawButtonState: 0,
+        releaseAction: true,
+        primaryButton: false,
+        secondaryButton: false,
+        barrelButton: false,
+        latchedBarrelButton: false,
+        receivedAt: performance.now()
+      };
+      window.__inkforgeLastNativeStylus = lastStylusDetail;
+    }
+    if (barrelRestoreTool && api.state.tool === 'eraser') api.setTool(barrelRestoreTool);
+    barrelRestoreTool = null;
+    hideStylusChip(120);
+    return true;
+  }
+
   function handleNativeStylusKey(event) {
     const detail = event.detail || {};
-    if (Number(detail.action) !== 1) return;
     const keyCode = Number(detail.keyCode);
+    const action = Number(detail.action);
+    const remoteNavigationKey = [19, 20, 21, 22, 24, 25, 87, 88, 89, 90].includes(keyCode);
+    if (action === 0 && !remoteNavigationKey) {
+      activateStylusKeyBarrel(detail);
+      return;
+    }
+    if (action === 1 && releaseStylusKeyBarrel()) return;
+    if (action !== 1) return;
     if ([21, 88, 89].includes(keyCode)) api.undo?.();
     else if ([22, 87, 90].includes(keyCode)) api.redo?.();
     else if ([19, 24].includes(keyCode)) {

@@ -70,6 +70,7 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -80,7 +81,7 @@ import java.util.concurrent.TimeUnit;
 public final class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 4172;
     private static final int AUDIO_PERMISSION_REQUEST = 4173;
-    private static final String APP_VERSION = "3.3.24";
+    private static final String APP_VERSION = "3.3.25";
     private static final String RELEASES_API_URL = "https://api.github.com/repos/jsk1004ha/BADNOTE/releases/latest";
     private static final String RELEASES_PAGE_URL = "https://github.com/jsk1004ha/BADNOTE/releases";
 
@@ -284,8 +285,12 @@ public final class MainActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         InputDevice device = event.getDevice();
-        if (webView != null && device != null &&
-                (device.getSources() & InputDevice.SOURCE_STYLUS) == InputDevice.SOURCE_STYLUS) {
+        String deviceName = device != null ? device.getName() : "";
+        boolean stylusSource = device != null &&
+                (device.getSources() & InputDevice.SOURCE_STYLUS) == InputDevice.SOURCE_STYLUS;
+        boolean likelyStylusButton = deviceName != null &&
+                deviceName.toLowerCase(Locale.ROOT).matches(".*(s pen|spen|stylus|wacom).*");
+        if (webView != null && device != null && (stylusSource || likelyStylusButton)) {
             JSONObject detail = new JSONObject();
             try {
                 detail.put("keyCode", event.getKeyCode());
@@ -293,6 +298,8 @@ public final class MainActivity extends Activity {
                 detail.put("repeatCount", event.getRepeatCount());
                 detail.put("eventTime", event.getEventTime());
                 detail.put("device", device.getName());
+                detail.put("source", device.getSources());
+                detail.put("stylus", true);
             } catch (JSONException ignored) {
             }
             dispatchNativeEvent("inkforge:native-stylus-key", detail);

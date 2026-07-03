@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.24';
+  const VERSION = '3.3.25';
   const PAGE_RENDER_SCALE_LIMIT = 4;
   const LEGACY_RASTER_PAGE_RENDER_SCALE_LIMIT = 2.15;
   const RASTER_PAGE_RENDER_SCALE_LIMIT = 2.55;
@@ -1702,7 +1702,7 @@
 
   function renderWidthForObject(object, pageIndex, ctx = null) {
     const screenWidth = Number(object?.screenWidth);
-    if (Number.isFinite(screenWidth) && screenWidth > 0) return screenToolWidthToPage(pageIndex, screenWidth, ctx);
+    if (Number.isFinite(screenWidth) && screenWidth > 0) return toolStrokeWidthToPage(pageIndex, screenWidth, ctx);
     return Math.max(.25, Number(object?.width) || 4);
   }
 
@@ -2383,6 +2383,7 @@
     const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
     ctx.__inkforgeTextBaseCssWidth = rect.width > 0 ? rect.width / Math.max(.08, state.zoom || 1) : TEXT_REFERENCE_PAGE_CSS_WIDTH;
     ctx.__inkforgePageCssWidth = rect.width > 0 ? rect.width : Math.max(1, PAGE_WIDTH * state.zoom);
+    ctx.__inkforgeBasePageCssWidth = rect.width > 0 ? rect.width / Math.max(.08, state.zoom || 1) : TEXT_REFERENCE_PAGE_CSS_WIDTH;
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     renderPageScene(ctx, page, pageIndex);
@@ -3323,6 +3324,20 @@
     return Math.max(.25, screenToPageDistance(pageIndex, Math.max(.5, Number(width) || 1), ctx));
   }
 
+  function basePageCssWidthForTools(pageIndex, ctx = null) {
+    const contextWidth = Number(ctx?.__inkforgeBasePageCssWidth);
+    if (Number.isFinite(contextWidth) && contextWidth > 0) return contextWidth;
+    const canvas = $(`.page-canvas[data-page-index="${pageIndex}"]`);
+    const rect = canvas?.getBoundingClientRect();
+    if (rect?.width > 0) return rect.width / Math.max(.08, state.zoom || 1);
+    return TEXT_REFERENCE_PAGE_CSS_WIDTH;
+  }
+
+  function toolStrokeWidthToPage(pageIndex, width, ctx = null) {
+    const cssWidth = basePageCssWidthForTools(pageIndex, ctx);
+    return Math.max(.25, Math.max(.5, Number(width) || 1) / Math.max(1, cssWidth) * PAGE_WIDTH);
+  }
+
   function objectPageWidth(object, pageIndex = state.currentPageIndex, ctx = null) {
     return renderWidthForObject(object, pageIndex, ctx);
   }
@@ -3380,6 +3395,8 @@
       !!nativeStylus?.primaryButton ||
       !!nativeStylus?.secondaryButton ||
       !!nativeStylus?.barrelButton ||
+      !!nativeStylus?.latchedBarrelButton ||
+      !!window.__inkforgeNativeBridge?.barrelButtonActive ||
       Number(nativeStylus?.toolType) === 4 ||
       !!nativeStylus?.eraser
     );
@@ -4264,7 +4281,7 @@
       const first = state.ruler.visible ? constrainToRuler(point) : point;
       const screen = eventScreenPoint(event);
       const displayWidth = brush === 'highlighter' ? state.highlighterWidth : state.width;
-      const pageWidth = screenToolWidthToPage(pageIndex, displayWidth);
+      const pageWidth = toolStrokeWidthToPage(pageIndex, displayWidth);
       state.drawSession = {
         kind: 'stroke', pageIndex, startedAt: performance.now(), lastMovedAt: performance.now(), pointerId: event.pointerId,
         screenPoints: [screen], holdScreenPoint: screen,
@@ -4281,7 +4298,7 @@
       state.drawSession = { kind: 'lasso', pageIndex, pointerId: event.pointerId, points: [point], closed: false };
       renderPageCanvas(pageIndex); updateObjectMenu();
     } else if (effectiveTool === 'shape') {
-      state.drawSession = { kind: 'shape', pageIndex, pointerId: event.pointerId, resizeAnchor: { x: point.x, y: point.y }, object: { id: uid('shape'), type: 'shape', shape: state.shape, color: state.color, width: screenToolWidthToPage(pageIndex, state.width), screenWidth: state.width, x1: point.x, y1: point.y, x2: point.x, y2: point.y } };
+      state.drawSession = { kind: 'shape', pageIndex, pointerId: event.pointerId, resizeAnchor: { x: point.x, y: point.y }, object: { id: uid('shape'), type: 'shape', shape: state.shape, color: state.color, width: toolStrokeWidthToPage(pageIndex, state.width), screenWidth: state.width, x1: point.x, y1: point.y, x2: point.x, y2: point.y } };
       ensureAspectLock(state.drawSession);
     } else if (effectiveTool === 'tape') {
       state.drawSession = { kind: 'tape', pageIndex, pointerId: event.pointerId, start: point, object: { id: uid('tape'), type: 'tape', color: state.tapeColor, x1: point.x, y1: point.y, x2: point.x, y2: point.y + 54, revealed: false } };
@@ -5660,6 +5677,7 @@
       applyStylusButtonEraser,
       applyHudTextOpacity,
       screenToolWidthToPage,
+      toolStrokeWidthToPage,
       objectPageWidth,
       updateObjectMenu,
       syncPageJumpInput,
