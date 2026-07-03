@@ -153,19 +153,19 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             const progressWidth = document.getElementById('nativeUpdateProgressFill')?.style.width;
             document.querySelectorAll('.modal').forEach(node => node.hidden = true);
             document.getElementById('modalBackdrop').hidden = true;
-            localStorage.removeItem('badnote.releaseNotes.seen.3.3.23');
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.24');
             localStorage.removeItem('badnote.releaseNotes.lastVersion');
             const first = bridge.showReleaseNotesOnce();
             const notesVisible = !document.getElementById('nativeUpdateSheet').hidden && document.getElementById('nativeUpdateSheet').dataset.status === 'release-notes';
             document.querySelector('[data-update-action="ack-notes"]').click();
             const second = bridge.showReleaseNotesOnce();
-            localStorage.removeItem('badnote.releaseNotes.seen.3.3.23');
+            localStorage.removeItem('badnote.releaseNotes.seen.3.3.24');
             localStorage.removeItem('badnote.releaseNotes.lastVersion');
             window.__inkforge.state.settings.language = 'en';
             window.__inkforge.refreshLocalizedUi();
             const englishFirst = bridge.showReleaseNotesOnce();
             const englishText = document.getElementById('nativeUpdateSheet')?.textContent || '';
-            const englishNotesVisible = englishFirst && englishText.includes('3.3.23 release notes') && englishText.includes('Moved the S Pen button eraser notice');
+            const englishNotesVisible = englishFirst && englishText.includes('3.3.24 release notes') && englishText.includes('Moved the S Pen button eraser notice');
             document.querySelector('[data-update-action="ack-notes"]').click();
             window.__inkforge.state.settings.language = 'ko';
             window.__inkforge.refreshLocalizedUi();
@@ -1722,7 +1722,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
     results["dialogs"] = dialogs
     results["console_errors"] = errors
-    required_scalars = results.get("version") == "3.3.23" and results.get("upgrade_version") == "3.3.23" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
+    required_scalars = results.get("version") == "3.3.24" and results.get("upgrade_version") == "3.3.24" and results.get("math_engine") == 60 and results.get("editor_visible") is True and results.get("ocr_toolbar") is True and results.get("pdf_tools_ready") is True and results.get("auto_math_default_off") is True
     results["passed"] = required_scalars and not errors and not dialogs and all(value.get("passed", True) if isinstance(value, dict) else True for key, value in results.items() if key not in {"console_errors", "dialogs"})
     return results
 

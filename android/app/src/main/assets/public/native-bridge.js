@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '3.3.23';
+  const VERSION = '3.3.24';
   const PAGE_WIDTH = 1000;
   const PAGE_HEIGHT = 1414;
   const HANDWRITING_OCR_DWELL_MS = 2800;
@@ -12,6 +12,7 @@
   const BARREL_BUTTON_LATCH_MS = 3500;
   const RELEASE_NOTES = {
     ko: [
+      '배드노트 앱 아이콘을 새 불꽃 노트 아이콘으로 변경했습니다.',
       'S Pen 버튼 지우개 알림을 화면 왼쪽 위로 옮기고, 버튼 해제 후 알림이 남는 문제를 수정했습니다.',
       '문서 검색 창을 닫은 직후 S Pen 버튼 지우개를 쓰면 검색 창이 다시 살짝 나타나 화면이 밀리는 문제를 막았습니다.',
       'S Pen을 화면에 댄 상태에서 버튼을 눌러도 즉시 지우개로 전환되도록 처리하고, 같은 펜 두께 값이 확대율에 따라 달라 보이는 문제를 보정했습니다.',
@@ -20,6 +21,7 @@
       '고배율 확대에서 필기와 도형이 깨져 보이지 않도록 벡터 오버레이 렌더링을 추가했습니다.'
     ],
     en: [
+      'Updated the bad note app icon to the new fire note icon.',
       'Moved the S Pen button eraser notice to the top-left of the screen and fixed cases where it stayed visible after release.',
       'Prevented the document search drawer from peeking back in and shifting the page after it was closed and the S Pen eraser was used.',
       'The S Pen button now switches an already-touching pen stroke into erasing immediately, and pen thickness is rendered consistently across zoom levels.',
@@ -28,6 +30,7 @@
       'Added vector overlay rendering so handwriting and shapes stay sharp at high zoom.'
     ],
     ja: [
+      'bad noteのアプリアイコンを新しいファイヤーノートアイコンに変更しました。',
       'S Penボタン消しゴムの通知を画面左上へ移動し、ボタンを離した後に残る場合を修正しました。',
       '文書検索を閉じた直後にS Pen消しゴムを使うと検索パネルが少し戻って画面がずれる問題を防ぎました。',
       'ペンを画面に接触したままS Penボタンを押しても即座に消しゴムへ切り替わり、ズーム率でペン幅の見た目が変わる問題を補正しました。',
@@ -36,6 +39,7 @@
       '高倍率ズームでも手書きと図形が粗く見えないよう、ベクターオーバーレイ描画を追加しました。'
     ],
     zh: [
+      '已将 bad note 应用图标更新为新的火焰笔记图标。',
       '将 S Pen 按钮橡皮提示移到屏幕左上，并修复松开按钮后提示不消失的情况。',
       '修复关闭文档搜索后使用 S Pen 橡皮时搜索抽屉轻微弹出并推动页面的问题。',
       'S Pen 已接触屏幕时按下按钮也会立即切换为橡皮，并修正缩放后相同笔宽显示不一致的问题。',
@@ -44,6 +48,7 @@
       '新增矢量叠加渲染，让手写和图形在高倍缩放时保持清晰。'
     ],
     pt: [
+      'Atualizado o icone do app bad note para o novo icone fire note.',
       'O aviso da borracha pelo botão da S Pen foi movido para o canto superior esquerdo, e casos em que ele ficava preso na tela foram corrigidos.',
       'A gaveta de busca do documento nao reaparece nem empurra a pagina depois de fechada ao usar a borracha da S Pen.',
       'Pressionar o botao da S Pen durante um traco em contato agora muda imediatamente para borracha, e a espessura da caneta fica consistente entre niveis de zoom.',
